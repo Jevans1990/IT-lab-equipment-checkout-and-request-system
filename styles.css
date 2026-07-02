@@ -1,0 +1,288 @@
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f5f5f7;
+  color: #222;
+}
+
+.main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #1f2933;
+  color: #fff;
+  padding: 10px 20px;
+}
+
+.logo {
+  font-size: 1.4rem;
+  font-weight: bold;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-actions button {
+  background: #3b82f6;
+  border: none;
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.header-actions button:hover {
+  background: #2563eb;
+}
+
+#user-role-label {
+  font-size: 0.9rem;
+  margin-right: 8px;
+}
+
+main {
+  padding: 20px;
+}
+
+h1, h2, h3, h4 {
+  margin-top: 0;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.card-header {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.card-body label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+
+.card-body select,
+.card-body input {
+  width: 100%;
+  padding: 4px 6px;
+  margin-top: 2px;
+  box-sizing: border-box;
+}
+
+.card-footer {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.card-footer button {
+  background: #10b981;
+  border: none;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.card-footer button:hover {
+  background: #059669;
+}
+
+/* Admin section */
+#admin-section {
+  margin-top: 30px;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tab-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  background: #e5e7eb;
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.modify-form {
+  margin-bottom: 16px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.modify-form label {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.modify-form input {
+  width: 100%;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  margin-top: 2px;
+}
+
+.modify-form button {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: #3b82f6;
+  color: #fff;
+  cursor: pointer;
+}
+
+/* Requests & history */
+#requests-list, #rental-history-list {
+  margin-top: 10px;
+}
+
+.request-card, .history-card {
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.request-actions {
+  margin-top: 8px;
+  text-align: right;
+}
+
+.request-actions button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.approve-btn {
+  background: #10b981;
+  color: #fff;
+}
+
+.deny-btn {
+  background: #ef4444;
+  color: #fff;
+}
+
+/* Modals */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  width: 320px;
+  max-width: 90%;
+}
+
+.modal-content label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.modal-content input,
+.modal-content select {
+  width: 100%;
+  padding: 4px 6px;
+  box-sizing: border-box;
+  margin-top: 2px;
+}
+
+.modal-actions {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.modal-actions button {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.hidden {
+  display: none;
+}
+
+/* Return button */
+.return-btn {
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 10px;
+}
+
+.return-btn:hover {
+  background: #2563eb;
+}
+
+/* User rentals section */
+#user-rentals-section {
+  margin-top: 30px;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.user-rental-card {
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
