@@ -2,147 +2,333 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Generitech Rentals</title>
-  <link rel="stylesheet" href="../static/styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lake Land IT Lab Checkout</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </head>
 <body>
   <header class="main-header">
-    <div class="logo">Generitech Rentals</div>
+    <div class="brand-block">
+      <div class="logo-mark">LLC</div>
+      <div>
+        <p class="school-name">Lake Land College</p>
+        <h1>IT Lab Equipment Checkout</h1>
+      </div>
+    </div>
+
     <div class="header-actions">
-      <span id="user-role-label">Not logged in</span>
-      <button id="login-btn">Log In</button>
-      <button id="logout-btn" class="hidden">Logout</button>
-      <button id="cart-btn">Cart (<span id="cart-count">0</span>)</button>
+      <span id="user-role-label" class="user-pill">Not logged in</span>
+      <button id="login-btn" class="secondary-btn">Log In</button>
+      <button id="logout-btn" class="secondary-btn hidden">Logout</button>
+      <button id="cart-btn" class="cart-btn">Cart (<span id="cart-count">0</span>)</button>
     </div>
   </header>
 
-  <!-- Login Modal -->
-  <div id="login-modal" class="modal hidden">
+  <main class="page-shell">
+    <section class="hero-card">
+      <p class="eyebrow">Inventory request system</p>
+      <h2>Request lab equipment, track approvals, and manage returns.</h2>
+      <p>
+        Browse available laptops, cameras, cables, chargers, and IT kits. Students and staff can
+        request equipment, while lab admins approve requests, process returns, and watch overdue items.
+      </p>
+    </section>
+
+    <section id="inventory-section" class="panel-card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Catalog</p>
+          <h2>Available Equipment</h2>
+        </div>
+        <p class="section-note">Choose an item and rental period, then submit a request for admin approval.</p>
+      </div>
+      <div id="inventory-grid" class="card-grid"></div>
+    </section>
+
+    <section id="user-rentals-section" class="panel-card hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Borrower view</p>
+          <h2>My Rentals</h2>
+        </div>
+        <p class="section-note">View your approved, returned, denied, and overdue checkout records.</p>
+      </div>
+      <div id="user-rentals-list" class="record-list"></div>
+    </section>
+
+    <section id="admin-section" class="panel-card hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Admin tools</p>
+          <h2>Lab Admin Panel</h2>
+        </div>
+        <p class="section-note">Approve requests, process returns, and keep inventory records clean.</p>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="add-item-tab">Add Item</button>
+        <button class="tab-btn" data-tab="update-item-tab">Update Item</button>
+        <button class="tab-btn" data-tab="modify-items-tab">Modify Items</button>
+        <button class="tab-btn" data-tab="approve-requests-tab">Approve/Deny Requests</button>
+        <button class="tab-btn" data-tab="rental-history-tab">Rental History</button>
+      </div>
+
+      <div id="add-item-tab" class="tab-content active">
+        <div class="tab-heading">
+          <h3>Add Inventory Item</h3>
+          <p>Add a new equipment item with its own category, condition, quantity, description, and rental prices.</p>
+        </div>
+
+        <div class="admin-grid single-admin-grid">
+          <div class="modify-form professional-form">
+            <h3>New Item Details</h3>
+
+            <div class="form-grid two-column-form">
+              <label>
+                Item Name
+                <input type="text" id="add-item-name" placeholder="Example: HDMI Adapter">
+              </label>
+
+              <label>
+                Category
+                <input type="text" id="add-item-category" placeholder="Example: Adapter, Laptop, Camera">
+              </label>
+
+              <label>
+                Condition
+                <select id="add-item-condition">
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                  <option value="Damaged">Damaged</option>
+                  <option value="Under Repair">Under Repair</option>
+                  <option value="Unavailable">Unavailable</option>
+                </select>
+              </label>
+
+              <label>
+                Quantity
+                <input type="number" id="add-item-qty" min="0" placeholder="Example: 5">
+              </label>
+            </div>
+
+            <label>
+              Description
+              <input type="text" id="add-item-description" placeholder="Example: USB-C to HDMI adapter for displays">
+            </label>
+
+            <div class="form-grid three-column-form">
+              <label>
+                Day Option Price
+                <input type="text" id="add-item-day-price" placeholder="Example: $5">
+              </label>
+
+              <label>
+                Weekend Option Price
+                <input type="text" id="add-item-weekend-price" placeholder="Example: $12">
+              </label>
+
+              <label>
+                Week Option Price
+                <input type="text" id="add-item-week-price" placeholder="Example: $20">
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button id="add-item-btn" class="primary-btn form-main-btn">Add Item</button>
+              <button id="clear-add-item-btn" class="secondary-light-btn form-secondary-btn">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="update-item-tab" class="tab-content">
+        <div class="tab-heading">
+          <h3>Update Inventory Item</h3>
+          <p>Select an existing item, then edit the prefilled item details and save the changes.</p>
+        </div>
+
+        <div class="admin-grid single-admin-grid">
+          <div class="modify-form professional-form">
+            <h3>Edit Existing Item</h3>
+
+            <label>
+              Select Item
+              <select id="update-item-select"></select>
+            </label>
+
+            <div class="form-grid two-column-form">
+              <label>
+                Item Name
+                <input type="text" id="update-item-name" placeholder="Example: Laptop">
+              </label>
+
+              <label>
+                Category
+                <input type="text" id="update-item-category" placeholder="Example: Computer">
+              </label>
+
+              <label>
+                Condition
+                <select id="update-item-condition">
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                  <option value="Damaged">Damaged</option>
+                  <option value="Under Repair">Under Repair</option>
+                  <option value="Unavailable">Unavailable</option>
+                  <option value="Damaged / Unavailable">Damaged / Unavailable</option>
+                </select>
+              </label>
+
+              <label>
+                Quantity
+                <input type="number" id="update-item-qty" min="0" placeholder="Example: 10">
+              </label>
+            </div>
+
+            <label>
+              Description
+              <input type="text" id="update-item-description" placeholder="Example: General-use laptop for coursework, testing, and lab work.">
+            </label>
+
+            <div class="form-grid three-column-form">
+              <label>
+                Day Option Price
+                <input type="text" id="update-item-day-price" placeholder="Example: $20">
+              </label>
+
+              <label>
+                Weekend Option Price
+                <input type="text" id="update-item-weekend-price" placeholder="Example: $50">
+              </label>
+
+              <label>
+                Week Option Price
+                <input type="text" id="update-item-week-price" placeholder="Example: $90">
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button id="update-item-btn" class="primary-btn form-main-btn">Save Changes</button>
+              <button id="reset-update-item-btn" class="secondary-light-btn form-secondary-btn">Reset Fields</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="modify-items-tab" class="tab-content">
+        <div class="tab-heading">
+          <h3>Modify Existing Inventory</h3>
+          <p>Delete old catalog records or damage out one physical item from available stock.</p>
+        </div>
+
+        <div class="admin-grid modify-admin-grid">
+          <div class="modify-form danger-panel compact-panel">
+            <div>
+              <h3>Delete All of One Item</h3>
+              <p class="form-note">Removes the selected item from the catalog.</p>
+            </div>
+            <label>
+              Item Name
+              <select id="delete-item-name"></select>
+            </label>
+            <div class="form-actions compact-actions">
+              <button id="delete-item-btn" class="danger-btn compact-btn">Delete Item</button>
+            </div>
+          </div>
+
+          <div class="modify-form compact-panel">
+            <div>
+              <h3>Damage Out Item</h3>
+              <p class="form-note">Subtracts one available item and keeps a cleaner damage record.</p>
+            </div>
+            <label>
+              Item Name
+              <select id="damage-item-name"></select>
+            </label>
+            <div class="form-grid two-column-form">
+              <label>
+                Serial Number
+                <input type="text" id="damage-serial-number" placeholder="Example: SN-20391">
+              </label>
+              <label>
+                Item Number
+                <input type="text" id="damage-item-number" placeholder="Example: LL-104">
+              </label>
+            </div>
+            <div class="form-actions compact-actions">
+              <button id="damage-item-btn" class="warning-btn compact-btn">Damage Out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="approve-requests-tab" class="tab-content">
+        <div class="tab-heading">
+          <h3>Pending Requests</h3>
+          <p>Approve requests only when equipment is available.</p>
+        </div>
+        <div id="requests-list" class="record-list"></div>
+      </div>
+
+      <div id="rental-history-tab" class="tab-content">
+        <div class="tab-heading">
+          <h3>Rental History</h3>
+          <p>Track approved, denied, returned, and overdue items.</p>
+        </div>
+        <div id="rental-history-list" class="record-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="login-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="login-title">
     <div class="modal-content">
-      <h2>Log In</h2>
+      <h2 id="login-title">Log In</h2>
+      <p class="modal-help">Temp logins: user/user123 or admin/admin123</p>
       <label>
-        Username:
-        <input type="text" id="login-username">
+        Username
+        <input type="text" id="login-username" autocomplete="username">
       </label>
-
       <label>
-        Password:
-        <input type="password" id="login-password">
+        Password
+        <input type="password" id="login-password" autocomplete="current-password">
       </label>
-
       <label>
-        Role:
+        Role
         <select id="login-role">
           <option value="user">User</option>
           <option value="admin">Admin</option>
         </select>
       </label>
       <div class="modal-actions">
-        <button id="login-submit">Log In</button>
-        <button id="login-cancel">Cancel</button>
+        <button id="login-submit" class="primary-btn">Log In</button>
+        <button id="login-cancel" class="secondary-light-btn">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Cart Modal -->
-  <div id="cart-modal" class="modal hidden">
-    <div class="modal-content">
-      <h2>Your Cart</h2>
-      <div id="cart-items"></div>
-      <button id="submit-rental-request">Submit Rental Request</button>
-      <button id="cart-close">Close</button>
+  <div id="cart-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cart-title">
+    <div class="modal-content wide-modal">
+      <h2 id="cart-title">Rental Request Cart</h2>
+      <div id="cart-items" class="record-list"></div>
+      <div class="modal-actions split-actions">
+        <button id="clear-cart" class="secondary-light-btn">Clear Cart</button>
+        <div class="modal-button-group">
+          <button id="submit-rental-request" class="primary-btn">Submit Rental Request</button>
+          <button id="cart-close" class="secondary-light-btn">Close</button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Notification Modal -->
-  <div id="notification-modal" class="modal hidden">
+  <div id="notification-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="notification-title">
     <div class="modal-content">
-      <h2>Notification</h2>
+      <h2 id="notification-title">Notification</h2>
       <p id="notification-text"></p>
-      <button id="notification-close">Close</button>
+      <div class="modal-actions">
+        <button id="notification-close" class="primary-btn">Close</button>
+      </div>
     </div>
   </div>
-
-  <main>
-    <section id="inventory-section">
-      <h1>Available Inventory</h1>
-      <div id="inventory-grid" class="card-grid"></div>
-    </section>
-
-    <section id="user-rentals-section" class="hidden">
-      <h2>My Rentals</h2>
-      <div id="user-rentals-list"></div>
-    </section>
-
-    <!-- Admin Tabs -->
-    <section id="admin-section" class="hidden">
-      <h2>Admin Panel</h2>
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="modify-items-tab">Modify Items</button>
-        <button class="tab-btn" data-tab="approve-requests-tab">Approve/Deny Requests</button>
-        <button class="tab-btn" data-tab="rental-history-tab">Rental History</button>
-      </div>
-
-      <div id="modify-items-tab" class="tab-content active">
-        <h3>Modify Items</h3>
-        <div class="modify-form">
-          <h4>Add Item</h4>
-          <label>
-            Item Name:
-            <input type="text" id="add-item-name">
-          </label>
-          <label>
-            Quantity:
-            <input type="number" id="add-item-qty" min="1">
-          </label>
-          <button id="add-item-btn">Add Item</button>
-        </div>
-
-        <div class="modify-form">
-          <h4>Delete All of One Item</h4>
-          <label>
-            Item Name:
-            <input type="text" id="delete-item-name">
-          </label>
-          <button id="delete-item-btn">Delete Item</button>
-        </div>
-
-        <div class="modify-form">
-          <h4>Damage Out Item</h4>
-          <label>
-            Item Name:
-            <input type="text" id="damage-item-name">
-          </label>
-          <label>
-            Serial Number:
-            <input type="text" id="damage-serial-number">
-          </label>
-          <label>
-            Item Number:
-            <input type="text" id="damage-item-number">
-          </label>
-          <button id="damage-item-btn">Damage Out</button>
-        </div>
-      </div>
-
-      <div id="approve-requests-tab" class="tab-content">
-        <h3>Approve/Deny User Requests</h3>
-        <div id="requests-list">
-          <!-- Requests injected by JS -->
-        </div>
-      </div>
-
-      <div id="rental-history-tab" class="tab-content">
-        <h3>Rental History</h3>
-        <div id="rental-history-list">
-          <!-- History injected by JS -->
-        </div>
-      </div>
-    </section>
-  </main>
-
-<script src="../static/script.js" defer></script>
 </body>
 </html>
-
-
