@@ -27,6 +27,10 @@ CREATE TABLE Users (
     role VARCHAR(25)
         NOT NULL
         DEFAULT 'Student'
+
+    username VARCHAR(25),
+
+    password VARCHAR(25)
 );
 GO
 
