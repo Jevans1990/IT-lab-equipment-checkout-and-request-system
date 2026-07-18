@@ -1,15 +1,13 @@
 from flask import Flask
-from os import path
 from flask_login import LoginManager
 
-# Connect to database
-import sqlite3
-connection = sqlite3.connect("LabCheckoutSystem.db")
-cursor = connection.cursor()
+from .models import User
+from .db import get_connection
 
 # Create app
 def create_app():
     app = Flask(__name__)
+    app.config["SECRET_KEY"] = "eklanvhoirdnhb"
 
     from .views import views
     from .auth import auth
@@ -22,7 +20,19 @@ def create_app():
     login_manager.init_app(app)
 
     @login_manager.user_loader
-    def load_user(id):
-        return cursor.execute(f"SELECT * FROM Users WHERE user_id = {int(id)}")
+    def load_user(user_id):
+        conn = get_connection()
+
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM Users WHERE user_id = ?", 
+                           (int(user_id),))
+            row = cursor.fetchone()
+        finally:
+            conn.close()
+
+        if row:
+            return User(row)
+        return None
 
     return app
