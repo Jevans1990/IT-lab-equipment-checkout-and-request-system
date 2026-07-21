@@ -5,6 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lake Land IT Lab Checkout</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+
+  <script>
+    window.BACKEND_AUTH = {
+      loginUrl: "{{ url_for('auth.login') }}",
+      logoutUrl: "{{ url_for('auth.logout') }}",
+      isAuthenticated: {{ current_user.is_authenticated|tojson }},
+      username: {{ (current_user.username if current_user.is_authenticated and current_user.username is defined else '')|tojson }},
+      role: {{ (current_user.role if current_user.is_authenticated and current_user.role is defined else '')|tojson }}
+    };
+  </script>
+
   <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </head>
 <body>
@@ -19,9 +30,9 @@
 
     <div class="header-actions">
       <span id="user-role-label" class="user-pill">Not logged in</span>
-      <button id="login-btn" class="secondary-btn">Log In</button>
-      <button id="logout-btn" class="secondary-btn hidden">Logout</button>
-      <button id="cart-btn" class="cart-btn">Request List (<span id="cart-count">0</span>)</button>
+      <button id="login-btn" class="secondary-btn" type="button">Log In</button>
+      <button id="logout-btn" class="secondary-btn hidden" type="button">Logout</button>
+      <button id="cart-btn" class="cart-btn" type="button">Request List (<span id="cart-count">0</span>)</button>
     </div>
   </header>
 
@@ -67,11 +78,11 @@
       </div>
 
       <div class="tabs">
-        <button class="tab-btn active" data-tab="add-item-tab">Add Item</button>
-        <button class="tab-btn" data-tab="update-item-tab">Update Item</button>
-        <button class="tab-btn" data-tab="modify-items-tab">Modify Items</button>
-        <button class="tab-btn" data-tab="approve-requests-tab">Approve/Deny Requests</button>
-        <button class="tab-btn" data-tab="rental-history-tab">Rental History</button>
+        <button class="tab-btn active" type="button" data-tab="add-item-tab">Add Item</button>
+        <button class="tab-btn" type="button" data-tab="update-item-tab">Update Item</button>
+        <button class="tab-btn" type="button" data-tab="modify-items-tab">Modify Items</button>
+        <button class="tab-btn" type="button" data-tab="approve-requests-tab">Approve/Deny Requests</button>
+        <button class="tab-btn" type="button" data-tab="rental-history-tab">Rental History</button>
       </div>
 
       <div id="add-item-tab" class="tab-content active">
@@ -123,8 +134,8 @@
             </label>
 
             <div class="form-actions">
-              <button id="add-item-btn" class="primary-btn form-main-btn">Add Item</button>
-              <button id="clear-add-item-btn" class="secondary-light-btn form-secondary-btn">Clear</button>
+              <button id="add-item-btn" class="primary-btn form-main-btn" type="button">Add Item</button>
+              <button id="clear-add-item-btn" class="secondary-light-btn form-secondary-btn" type="button">Clear</button>
             </div>
           </div>
         </div>
@@ -185,8 +196,8 @@
             </label>
 
             <div class="form-actions">
-              <button id="update-item-btn" class="primary-btn form-main-btn">Save Changes</button>
-              <button id="reset-update-item-btn" class="secondary-light-btn form-secondary-btn">Reset Fields</button>
+              <button id="update-item-btn" class="primary-btn form-main-btn" type="button">Save Changes</button>
+              <button id="reset-update-item-btn" class="secondary-light-btn form-secondary-btn" type="button">Reset Fields</button>
             </div>
           </div>
         </div>
@@ -209,7 +220,7 @@
               <select id="delete-item-name"></select>
             </label>
             <div class="form-actions compact-actions">
-              <button id="delete-item-btn" class="danger-btn compact-btn">Delete Item</button>
+              <button id="delete-item-btn" class="danger-btn compact-btn" type="button">Delete Item</button>
             </div>
           </div>
 
@@ -233,7 +244,7 @@
               </label>
             </div>
             <div class="form-actions compact-actions">
-              <button id="damage-item-btn" class="warning-btn compact-btn">Damage Out</button>
+              <button id="damage-item-btn" class="warning-btn compact-btn" type="button">Damage Out</button>
             </div>
           </div>
         </div>
@@ -258,29 +269,33 @@
   </main>
 
   <div id="login-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="login-title">
-    <div class="modal-content">
+    <form id="login-form" class="modal-content" method="POST" action="{{ url_for('auth.login') }}">
       <h2 id="login-title">Log In</h2>
-      <p class="modal-help">Temp logins: user/user123 or admin/admin123</p>
+      <p class="modal-help">Use your assigned lab account.</p>
+
       <label>
-        Username
-        <input type="text" id="login-username" autocomplete="username">
+        Username or Email
+        <input type="text" id="login-username" name="login-username" autocomplete="username" required>
       </label>
+
       <label>
         Password
-        <input type="password" id="login-password" autocomplete="current-password">
+        <input type="password" id="login-password" name="login-password" autocomplete="current-password" required>
       </label>
+
       <label>
         Role
-        <select id="login-role">
+        <select id="login-role" name="login-role">
           <option value="user">User</option>
           <option value="admin">Admin</option>
         </select>
       </label>
+
       <div class="modal-actions">
-        <button id="login-submit" class="primary-btn">Log In</button>
-        <button id="login-cancel" class="secondary-light-btn">Cancel</button>
+        <button id="login-submit" class="primary-btn" type="submit">Log In</button>
+        <button id="login-cancel" class="secondary-light-btn" type="button">Cancel</button>
       </div>
-    </div>
+    </form>
   </div>
 
   <div id="cart-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cart-title">
@@ -288,10 +303,10 @@
       <h2 id="cart-title">Equipment Request List</h2>
       <div id="cart-items" class="record-list"></div>
       <div class="modal-actions split-actions">
-        <button id="clear-cart" class="secondary-light-btn">Clear List</button>
+        <button id="clear-cart" class="secondary-light-btn" type="button">Clear List</button>
         <div class="modal-button-group">
-          <button id="submit-rental-request" class="primary-btn">Submit Request</button>
-          <button id="cart-close" class="secondary-light-btn">Close</button>
+          <button id="submit-rental-request" class="primary-btn" type="button">Submit Request</button>
+          <button id="cart-close" class="secondary-light-btn" type="button">Close</button>
         </div>
       </div>
     </div>
@@ -302,7 +317,7 @@
       <h2 id="notification-title">Notification</h2>
       <p id="notification-text"></p>
       <div class="modal-actions">
-        <button id="notification-close" class="primary-btn">Close</button>
+        <button id="notification-close" class="primary-btn" type="button">Close</button>
       </div>
     </div>
   </div>

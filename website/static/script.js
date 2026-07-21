@@ -1,11 +1,6 @@
 document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY = "itLabCheckoutDemoState";
 
-  const mockPasswords = {
-    user: "user123",
-    admin: "admin123",
-  };
-
   const defaultInventory = [
     {
       name: "Laptop",
@@ -77,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   ];
 
-  let currentUser = null;
+  let currentUser = getBackendUser();
   let cart = [];
   let rentalRequests = [];
   let rentalHistory = [];
@@ -95,10 +90,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const cartCountSpan = document.getElementById("cart-count");
 
   const loginModal = document.getElementById("login-modal");
-  const loginUsernameInput = document.getElementById("login-username");
-  const loginPasswordInput = document.getElementById("login-password");
-  const loginRoleSelect = document.getElementById("login-role");
-  const loginSubmitBtn = document.getElementById("login-submit");
   const loginCancelBtn = document.getElementById("login-cancel");
 
   const cartModal = document.getElementById("cart-modal");
@@ -154,6 +145,53 @@ document.addEventListener("DOMContentLoaded", () => {
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#039;");
+  }
+
+  function normalizeBackendRole(role) {
+    const cleanRole = String(role || "").trim().toLowerCase();
+
+    if (cleanRole === "admin" || cleanRole === "manager" || cleanRole === "lab admin") {
+      return "admin";
+    }
+
+    return "user";
+  }
+
+  function getBackendUser() {
+    const auth = window.BACKEND_AUTH || {};
+
+    if (!auth.isAuthenticated) {
+      return null;
+    }
+
+    return {
+      username: auth.username || "User",
+      role: normalizeBackendRole(auth.role),
+    };
+  }
+
+  function syncAuthUI() {
+    currentUser = getBackendUser();
+
+    if (currentUser) {
+      userRoleLabel.textContent = `Logged in as ${currentUser.username} (${currentUser.role})`;
+      logoutBtn.classList.remove("hidden");
+      loginBtn.classList.add("hidden");
+
+      if (currentUser.role === "admin") {
+        adminSection.classList.remove("hidden");
+        userRentalsSection.classList.add("hidden");
+        refreshAdminSelectors();
+      } else {
+        adminSection.classList.add("hidden");
+      }
+    } else {
+      userRoleLabel.textContent = "Not logged in";
+      logoutBtn.classList.add("hidden");
+      loginBtn.classList.remove("hidden");
+      adminSection.classList.add("hidden");
+      userRentalsSection.classList.add("hidden");
+    }
   }
 
   function parsePositiveInt(value, fallback = 1) {
@@ -325,7 +363,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function statusBadge(status, dueDateISO) {
-    const normalized = normalizeStatus(status, dueDateISO);
+    const normalized = normalizeStatus(status || "pending", dueDateISO);
     const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
     return `<span class="badge ${escapeHTML(normalized)}">${escapeHTML(label)}</span>`;
   }
@@ -372,8 +410,8 @@ document.addEventListener("DOMContentLoaded", () => {
     inventoryGrid.innerHTML = "";
     sortInventory();
 
-    inventory.forEach((item) => {
-      item = normalizeInventoryItem(item);
+    inventory.forEach((rawItem) => {
+      const item = normalizeInventoryItem(rawItem);
       const status = getAvailabilityStatus(item);
       const card = document.createElement("article");
       card.className = "equipment-card";
@@ -465,7 +503,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         addButton.addEventListener("click", () => {
           if (!currentUser) {
-            showNotification("Please log in as a user before requesting equipment.");
+            showNotification("Please log in before requesting equipment.");
             showModal(loginModal);
             return;
           }
@@ -815,65 +853,8 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
-  function handleLogin() {
-    const username = loginUsernameInput.value.trim();
-    const password = loginPasswordInput.value.trim();
-    const role = loginRoleSelect.value;
-
-    if (!username || !password) {
-      showNotification("Please enter both username and password.");
-      return;
-    }
-
-    if (role === "admin" && username.toLowerCase() !== "admin") {
-      showNotification("Only the admin account may log in as admin.");
-      return;
-    }
-
-    if (role === "user" && username.toLowerCase() === "admin") {
-      showNotification("Admin cannot log in as a regular user.");
-      return;
-    }
-
-    if (password !== mockPasswords[role]) {
-      showNotification("Incorrect password for the selected role.");
-      return;
-    }
-
-    currentUser = { username, role };
-    loginUsernameInput.value = "";
-    loginPasswordInput.value = "";
-    userRoleLabel.textContent = `Logged in as ${username} (${role})`;
-    logoutBtn.classList.remove("hidden");
-    loginBtn.classList.add("hidden");
-    hideModal(loginModal);
-
-    if (role === "admin") {
-      adminSection.classList.remove("hidden");
-      userRentalsSection.classList.add("hidden");
-      refreshAdminSelectors();
-    } else {
-      adminSection.classList.add("hidden");
-    }
-
-    renderInventory();
-    renderRequests();
-    renderRentalHistory();
-    renderUserRentals();
-  }
-
   function handleLogout() {
-    currentUser = null;
-    cart = [];
-    updateCartCount();
-    userRoleLabel.textContent = "Not logged in";
-    adminSection.classList.add("hidden");
-    userRentalsSection.classList.add("hidden");
-    loginBtn.classList.remove("hidden");
-    logoutBtn.classList.add("hidden");
-    renderInventory();
-    renderUserRentals();
-    showNotification("You have been logged out.");
+    window.location.href = window.BACKEND_AUTH?.logoutUrl || "/logout";
   }
 
   function getItemFormData(mode) {
@@ -1152,7 +1133,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   loginBtn.addEventListener("click", () => showModal(loginModal));
   loginCancelBtn.addEventListener("click", () => hideModal(loginModal));
-  loginSubmitBtn.addEventListener("click", handleLogin);
   logoutBtn.addEventListener("click", handleLogout);
 
   cartBtn.addEventListener("click", () => {
@@ -1192,6 +1172,7 @@ document.addEventListener("DOMContentLoaded", () => {
   rentalHistory = rentalHistory.map(normalizeRequest);
   sortInventory();
   updateCartCount();
+  syncAuthUI();
   refreshAdminSelectors();
   renderInventory();
   renderRequests();
