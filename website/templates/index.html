@@ -21,7 +21,7 @@
       <span id="user-role-label" class="user-pill">Not logged in</span>
       <button id="login-btn" class="secondary-btn">Log In</button>
       <button id="logout-btn" class="secondary-btn hidden">Logout</button>
-      <button id="cart-btn" class="cart-btn">Cart (<span id="cart-count">0</span>)</button>
+      <button id="cart-btn" class="cart-btn">Request List (<span id="cart-count">0</span>)</button>
     </div>
   </header>
 
@@ -31,7 +31,7 @@
       <h2>Request lab equipment, track approvals, and manage returns.</h2>
       <p>
         Browse available laptops, cameras, cables, chargers, and IT kits. Students and staff can
-        request equipment, while lab admins approve requests, process returns, and watch overdue items.
+        request free equipment checkouts, while lab admins approve requests, process returns, and watch overdue items.
       </p>
     </section>
 
@@ -41,7 +41,7 @@
           <p class="eyebrow">Catalog</p>
           <h2>Available Equipment</h2>
         </div>
-        <p class="section-note">Choose an item and rental period, then submit a request for admin approval.</p>
+        <p class="section-note">Choose an item, enter how many days you need it, then submit a request for admin approval.</p>
       </div>
       <div id="inventory-grid" class="card-grid"></div>
     </section>
@@ -77,7 +77,7 @@
       <div id="add-item-tab" class="tab-content active">
         <div class="tab-heading">
           <h3>Add Inventory Item</h3>
-          <p>Add a new equipment item with its own category, condition, quantity, description, and rental prices.</p>
+          <p>Add a new free checkout item with its category, condition, quantity, description, and default checkout length.</p>
         </div>
 
         <div class="admin-grid single-admin-grid">
@@ -117,22 +117,10 @@
               <input type="text" id="add-item-description" placeholder="Example: USB-C to HDMI adapter for displays">
             </label>
 
-            <div class="form-grid three-column-form">
-              <label>
-                Day Option Price
-                <input type="text" id="add-item-day-price" placeholder="Example: $5">
-              </label>
-
-              <label>
-                Weekend Option Price
-                <input type="text" id="add-item-weekend-price" placeholder="Example: $12">
-              </label>
-
-              <label>
-                Week Option Price
-                <input type="text" id="add-item-week-price" placeholder="Example: $20">
-              </label>
-            </div>
+            <label class="days-field">
+              Default Checkout Days
+              <input type="number" id="add-item-checkout-days" min="1" max="60" placeholder="Example: 7">
+            </label>
 
             <div class="form-actions">
               <button id="add-item-btn" class="primary-btn form-main-btn">Add Item</button>
@@ -191,22 +179,10 @@
               <input type="text" id="update-item-description" placeholder="Example: General-use laptop for coursework, testing, and lab work.">
             </label>
 
-            <div class="form-grid three-column-form">
-              <label>
-                Day Option Price
-                <input type="text" id="update-item-day-price" placeholder="Example: $20">
-              </label>
-
-              <label>
-                Weekend Option Price
-                <input type="text" id="update-item-weekend-price" placeholder="Example: $50">
-              </label>
-
-              <label>
-                Week Option Price
-                <input type="text" id="update-item-week-price" placeholder="Example: $90">
-              </label>
-            </div>
+            <label class="days-field">
+              Default Checkout Days
+              <input type="number" id="update-item-checkout-days" min="1" max="60" placeholder="Example: 7">
+            </label>
 
             <div class="form-actions">
               <button id="update-item-btn" class="primary-btn form-main-btn">Save Changes</button>
@@ -309,12 +285,12 @@
 
   <div id="cart-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cart-title">
     <div class="modal-content wide-modal">
-      <h2 id="cart-title">Rental Request Cart</h2>
+      <h2 id="cart-title">Equipment Request List</h2>
       <div id="cart-items" class="record-list"></div>
       <div class="modal-actions split-actions">
-        <button id="clear-cart" class="secondary-light-btn">Clear Cart</button>
+        <button id="clear-cart" class="secondary-light-btn">Clear List</button>
         <div class="modal-button-group">
-          <button id="submit-rental-request" class="primary-btn">Submit Rental Request</button>
+          <button id="submit-rental-request" class="primary-btn">Submit Request</button>
           <button id="cart-close" class="secondary-light-btn">Close</button>
         </div>
       </div>

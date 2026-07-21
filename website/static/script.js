@@ -13,11 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: "Good",
       quantity: 10,
       description: "General-use laptop for coursework, testing, and lab work.",
-      rentalOptions: [
-        { period: "Day", price: "$20" },
-        { period: "Weekend", price: "$50" },
-        { period: "Week", price: "$90" },
-      ],
+      checkoutDays: 7,
     },
     {
       name: "Camera Kit",
@@ -25,11 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: "Good",
       quantity: 6,
       description: "Camera, battery, charger, and carrying case for class projects.",
-      rentalOptions: [
-        { period: "Day", price: "$15" },
-        { period: "Weekend", price: "$35" },
-        { period: "Week", price: "$60" },
-      ],
+      checkoutDays: 5,
     },
     {
       name: "Keyboard",
@@ -37,11 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: "Good",
       quantity: 15,
       description: "USB keyboard for lab stations, testing, or temporary checkout.",
-      rentalOptions: [
-        { period: "Day", price: "$5" },
-        { period: "Weekend", price: "$12" },
-        { period: "Week", price: "$20" },
-      ],
+      checkoutDays: 7,
     },
     {
       name: "Mouse",
@@ -49,11 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: "Good",
       quantity: 20,
       description: "Wired mouse for lab stations and temporary student use.",
-      rentalOptions: [
-        { period: "Day", price: "$4" },
-        { period: "Weekend", price: "$10" },
-        { period: "Week", price: "$18" },
-      ],
+      checkoutDays: 7,
     },
     {
       name: "Cable",
@@ -61,11 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: "Good",
       quantity: 40,
       description: "Common USB cables for charging, data transfer, and adapters.",
-      rentalOptions: [
-        { period: "Day", price: "$2" },
-        { period: "Weekend", price: "$5" },
-        { period: "Week", price: "$8" },
-      ],
+      checkoutDays: 3,
       cableTypes: ["USB-A to USB-C", "USB-C to USB-C", "Micro USB", "Mini USB"],
       cableLengths: ["4ft", "6ft", "8ft", "10ft"],
     },
@@ -75,11 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: "Good",
       quantity: 25,
       description: "Wall charger blocks for phones, tablets, and small devices.",
-      rentalOptions: [
-        { period: "Day", price: "$3" },
-        { period: "Weekend", price: "$7" },
-        { period: "Week", price: "$12" },
-      ],
+      checkoutDays: 3,
       chargerTypes: ["USB-A", "USB-C", "USB-C Fast Charging"],
     },
     {
@@ -88,11 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: "Good",
       quantity: 18,
       description: "Vehicle charger for mobile devices during travel or field work.",
-      rentalOptions: [
-        { period: "Day", price: "$3" },
-        { period: "Weekend", price: "$7" },
-        { period: "Week", price: "$12" },
-      ],
+      checkoutDays: 3,
       chargerTypes: ["USB-A", "USB-C"],
     },
     {
@@ -101,11 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: "Good",
       quantity: 4,
       description: "Mixed adapter kit with HDMI, USB-C, Ethernet, and display adapters.",
-      rentalOptions: [
-        { period: "Day", price: "$10" },
-        { period: "Weekend", price: "$24" },
-        { period: "Week", price: "$40" },
-      ],
+      checkoutDays: 5,
     },
   ];
 
@@ -153,9 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const addItemConditionSelect = document.getElementById("add-item-condition");
   const addItemQtyInput = document.getElementById("add-item-qty");
   const addItemDescriptionInput = document.getElementById("add-item-description");
-  const addItemDayPriceInput = document.getElementById("add-item-day-price");
-  const addItemWeekendPriceInput = document.getElementById("add-item-weekend-price");
-  const addItemWeekPriceInput = document.getElementById("add-item-week-price");
+  const addItemCheckoutDaysInput = document.getElementById("add-item-checkout-days");
   const addItemBtn = document.getElementById("add-item-btn");
   const clearAddItemBtn = document.getElementById("clear-add-item-btn");
 
@@ -165,9 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const updateItemConditionSelect = document.getElementById("update-item-condition");
   const updateItemQtyInput = document.getElementById("update-item-qty");
   const updateItemDescriptionInput = document.getElementById("update-item-description");
-  const updateItemDayPriceInput = document.getElementById("update-item-day-price");
-  const updateItemWeekendPriceInput = document.getElementById("update-item-weekend-price");
-  const updateItemWeekPriceInput = document.getElementById("update-item-week-price");
+  const updateItemCheckoutDaysInput = document.getElementById("update-item-checkout-days");
   const updateItemBtn = document.getElementById("update-item-btn");
   const resetUpdateItemBtn = document.getElementById("reset-update-item-btn");
 
@@ -192,39 +156,60 @@ document.addEventListener("DOMContentLoaded", () => {
       .replaceAll("'", "&#039;");
   }
 
-  function normalizePrice(value, fallback) {
-    const trimmed = String(value ?? "").trim();
-    if (!trimmed) {
-      return fallback;
+  function parsePositiveInt(value, fallback = 1) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  function getCheckoutDaysFromOldRentalOptions(item) {
+    if (!Array.isArray(item.rentalOptions)) {
+      return 7;
     }
-    if (trimmed.startsWith("$")) {
-      return trimmed;
+
+    if (item.rentalOptions.some((option) => option.period === "Week")) {
+      return 7;
     }
-    return `$${trimmed}`;
+
+    if (item.rentalOptions.some((option) => option.period === "Weekend")) {
+      return 3;
+    }
+
+    return 1;
   }
 
-  function getRentalOptions(item) {
-    const options = Array.isArray(item.rentalOptions) ? item.rentalOptions : [];
-    const day = options.find((option) => option.period === "Day")?.price || "$5";
-    const weekend = options.find((option) => option.period === "Weekend")?.price || "$12";
-    const week = options.find((option) => option.period === "Week")?.price || "$20";
-    return [
-      { period: "Day", price: day },
-      { period: "Weekend", price: weekend },
-      { period: "Week", price: week },
-    ];
+  function normalizeInventoryItem(item) {
+    return {
+      name: item.name || "Unnamed Item",
+      category: item.category || "General",
+      condition: item.condition || "Good",
+      quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 0,
+      description: item.description || "No description provided.",
+      checkoutDays: parsePositiveInt(item.checkoutDays, getCheckoutDaysFromOldRentalOptions(item)),
+      cableTypes: Array.isArray(item.cableTypes) ? item.cableTypes : undefined,
+      cableLengths: Array.isArray(item.cableLengths) ? item.cableLengths : undefined,
+      chargerTypes: Array.isArray(item.chargerTypes) ? item.chargerTypes : undefined,
+    };
   }
 
-  function getRentalPrice(item, period) {
-    return getRentalOptions(item).find((option) => option.period === period)?.price || "";
+  function normalizeRequestItem(item) {
+    const periodDays = {
+      Day: 1,
+      Weekend: 3,
+      Week: 7,
+    };
+
+    return {
+      itemName: item.itemName || item.name || "Unknown Item",
+      checkoutDays: parsePositiveInt(item.checkoutDays, periodDays[item.rentalPeriod] || 7),
+      extra: item.extra || {},
+    };
   }
 
-  function buildRentalOptions(dayPrice, weekendPrice, weekPrice) {
-    return [
-      { period: "Day", price: normalizePrice(dayPrice, "$5") },
-      { period: "Weekend", price: normalizePrice(weekendPrice, "$12") },
-      { period: "Week", price: normalizePrice(weekPrice, "$20") },
-    ];
+  function normalizeRequest(request) {
+    return {
+      ...request,
+      items: Array.isArray(request.items) ? request.items.map(normalizeRequestItem) : [],
+    };
   }
 
   function findInventoryItem(name) {
@@ -243,9 +228,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       const data = JSON.parse(saved);
-      inventory = Array.isArray(data.inventory) ? data.inventory : inventory;
-      rentalRequests = Array.isArray(data.rentalRequests) ? data.rentalRequests : rentalRequests;
-      rentalHistory = Array.isArray(data.rentalHistory) ? data.rentalHistory : rentalHistory;
+      inventory = Array.isArray(data.inventory) ? data.inventory.map(normalizeInventoryItem) : inventory;
+      rentalRequests = Array.isArray(data.rentalRequests) ? data.rentalRequests.map(normalizeRequest) : rentalRequests;
+      rentalHistory = Array.isArray(data.rentalHistory) ? data.rentalHistory.map(normalizeRequest) : rentalHistory;
     } catch {
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -290,17 +275,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function getCheckoutDays(items) {
-    const periodDays = {
-      Day: 1,
-      Weekend: 3,
-      Week: 7,
-    };
+  function formatDays(days) {
+    const parsedDays = parsePositiveInt(days, 1);
+    return `${parsedDays} ${parsedDays === 1 ? "day" : "days"}`;
+  }
 
-    return items.reduce((maxDays, item) => {
-      const days = periodDays[item.rentalPeriod] ?? 3;
-      return Math.max(maxDays, days);
-    }, 1);
+  function getCheckoutDays(items) {
+    return items.reduce((maxDays, item) => Math.max(maxDays, parsePositiveInt(item.checkoutDays, 1)), 1);
   }
 
   function getDueDate(items) {
@@ -310,19 +291,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getAvailabilityStatus(item) {
+    const condition = String(item.condition || "").toLowerCase();
+
     if (item.quantity <= 0) {
       return { label: "Unavailable", className: "unavailable" };
     }
 
-    if (item.condition && item.condition.toLowerCase().includes("damaged")) {
+    if (condition.includes("damaged")) {
       return { label: "Damaged", className: "damaged" };
     }
 
-    if (item.condition && item.condition.toLowerCase().includes("repair")) {
+    if (condition.includes("repair")) {
       return { label: "Under Repair", className: "low-stock" };
     }
 
-    if (item.condition && item.condition.toLowerCase().includes("unavailable")) {
+    if (condition.includes("unavailable")) {
       return { label: "Unavailable", className: "unavailable" };
     }
 
@@ -370,7 +353,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return `
       <ul class="item-list">
         ${items
-          .map((item) => `<li>${escapeHTML(item.itemName)} - ${escapeHTML(item.rentalPeriod)}${escapeHTML(getExtraDescription(item.extra))}</li>`)
+          .map(
+            (item) =>
+              `<li>${escapeHTML(item.itemName)} - ${escapeHTML(formatDays(item.checkoutDays))} checkout${escapeHTML(getExtraDescription(item.extra))}</li>`
+          )
           .join("")}
       </ul>
     `;
@@ -387,7 +373,7 @@ document.addEventListener("DOMContentLoaded", () => {
     sortInventory();
 
     inventory.forEach((item) => {
-      item.rentalOptions = getRentalOptions(item);
+      item = normalizeInventoryItem(item);
       const status = getAvailabilityStatus(item);
       const card = document.createElement("article");
       card.className = "equipment-card";
@@ -406,6 +392,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="detail-list">
           <div><span>Available:</span> ${escapeHTML(item.quantity)}</div>
           <div><span>Condition:</span> ${escapeHTML(item.condition || "Good")}</div>
+          <div><span>Default Checkout:</span> ${escapeHTML(formatDays(item.checkoutDays))}</div>
         </div>
       `;
 
@@ -413,17 +400,16 @@ document.addEventListener("DOMContentLoaded", () => {
         const formStack = document.createElement("div");
         formStack.className = "option-stack";
 
-        const rentalLabel = document.createElement("label");
-        rentalLabel.textContent = "Rental period";
-        const rentalSelect = document.createElement("select");
-        item.rentalOptions.forEach((option) => {
-          const selectOption = document.createElement("option");
-          selectOption.value = option.period;
-          selectOption.textContent = `${option.period} - ${option.price}`;
-          rentalSelect.appendChild(selectOption);
-        });
-        rentalLabel.appendChild(rentalSelect);
-        formStack.appendChild(rentalLabel);
+        const daysLabel = document.createElement("label");
+        daysLabel.textContent = "Requested checkout days";
+        const daysInput = document.createElement("input");
+        daysInput.type = "number";
+        daysInput.min = "1";
+        daysInput.max = "60";
+        daysInput.value = item.checkoutDays;
+        daysInput.className = "checkout-days-input";
+        daysLabel.appendChild(daysInput);
+        formStack.appendChild(daysLabel);
 
         let cableTypeSelect = null;
         let cableLengthSelect = null;
@@ -474,13 +460,19 @@ document.addEventListener("DOMContentLoaded", () => {
         actions.className = "card-actions";
         const addButton = document.createElement("button");
         addButton.className = "primary-btn request-card-btn";
-        addButton.textContent = currentUser ? "Add to Cart" : "Log In to Request";
+        addButton.textContent = currentUser ? "Add to Request" : "Log In to Request";
         addButton.disabled = item.quantity <= 0 || status.className === "damaged" || status.className === "unavailable";
 
         addButton.addEventListener("click", () => {
           if (!currentUser) {
             showNotification("Please log in as a user before requesting equipment.");
             showModal(loginModal);
+            return;
+          }
+
+          const checkoutDays = parsePositiveInt(daysInput.value, item.checkoutDays);
+          if (checkoutDays < 1 || checkoutDays > 60) {
+            showNotification("Please enter a checkout length between 1 and 60 days.");
             return;
           }
 
@@ -495,12 +487,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
           cart.push({
             itemName: item.name,
-            rentalPeriod: rentalSelect.value,
+            checkoutDays,
             extra,
           });
 
           updateCartCount();
-          showNotification(`${item.name} was added to your request cart.`);
+          showNotification(`${item.name} was added to your request list.`);
         });
 
         actions.appendChild(addButton);
@@ -510,7 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const adminDetails = document.createElement("div");
         adminDetails.className = "detail-list";
         adminDetails.innerHTML = `
-          <div><span>Rental Options:</span> ${escapeHTML(item.rentalOptions.map((option) => `${option.period} ${option.price}`).join(", "))}</div>
+          <div><span>Default Checkout:</span> ${escapeHTML(formatDays(item.checkoutDays))}</div>
         `;
         card.appendChild(adminDetails);
       }
@@ -524,18 +516,19 @@ document.addEventListener("DOMContentLoaded", () => {
     updateCartCount();
 
     if (cart.length === 0) {
-      cartItemsDiv.innerHTML = `<div class="empty-state">Your cart is empty.</div>`;
+      cartItemsDiv.innerHTML = `<div class="empty-state">Your request list is empty.</div>`;
       return;
     }
 
     cart.forEach((item, index) => {
+      const normalizedItem = normalizeRequestItem(item);
       const card = document.createElement("div");
       card.className = "record-card";
       card.innerHTML = `
         <div class="record-header">
           <div>
-            <p class="record-title">${escapeHTML(item.itemName)}</p>
-            <p class="record-meta">Rental period: ${escapeHTML(item.rentalPeriod)}${escapeHTML(getExtraDescription(item.extra))}</p>
+            <p class="record-title">${escapeHTML(normalizedItem.itemName)}</p>
+            <p class="record-meta">Checkout length: ${escapeHTML(formatDays(normalizedItem.checkoutDays))}${escapeHTML(getExtraDescription(normalizedItem.extra))}</p>
           </div>
         </div>
       `;
@@ -543,7 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const actions = document.createElement("div");
       actions.className = "record-actions";
       const removeButton = document.createElement("button");
-      removeButton.className = "remove-btn compact-btn";
+      removeButton.className = "remove-btn";
       removeButton.textContent = "Remove";
       removeButton.addEventListener("click", () => {
         cart.splice(index, 1);
@@ -563,14 +556,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (cart.length === 0) {
-      showNotification("Your cart is empty.");
+      showNotification("Your request list is empty.");
       return;
     }
 
     const request = {
       id: Date.now(),
       username: currentUser.username,
-      items: [...cart],
+      items: cart.map(normalizeRequestItem),
       status: "pending",
       requestDateISO: new Date().toISOString(),
     };
@@ -603,6 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div>
               <p class="record-title">Request #${escapeHTML(request.id)}</p>
               <p class="record-meta">Borrower: ${escapeHTML(request.username)} | Requested: ${escapeHTML(formatDate(request.requestDateISO))}</p>
+              ${request.dueDateISO ? `<p class="record-meta">Due: ${escapeHTML(formatDate(request.dueDateISO))}</p>` : ""}
             </div>
             ${statusBadge(request.status, request.dueDateISO)}
           </div>
@@ -614,12 +608,12 @@ document.addEventListener("DOMContentLoaded", () => {
           actions.className = "request-actions";
 
           const approveButton = document.createElement("button");
-          approveButton.className = "approve-btn compact-btn";
+          approveButton.className = "approve-btn";
           approveButton.textContent = "Approve";
           approveButton.addEventListener("click", () => approveRequest(request.id));
 
           const denyButton = document.createElement("button");
-          denyButton.className = "deny-btn compact-btn";
+          denyButton.className = "deny-btn";
           denyButton.textContent = "Deny";
           denyButton.addEventListener("click", () => denyRequest(request.id));
 
@@ -639,8 +633,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     return Object.entries(requestedCounts).every(([itemName, count]) => {
-      const inventoryItem = inventory.find((item) => item.name === itemName);
-      return inventoryItem && inventoryItem.quantity >= count;
+      const inventoryItem = findInventoryItem(itemName);
+      const status = inventoryItem ? getAvailabilityStatus(inventoryItem) : null;
+      return inventoryItem && inventoryItem.quantity >= count && status.className !== "damaged" && status.className !== "unavailable";
     });
   }
 
@@ -656,7 +651,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     request.items.forEach((requestedItem) => {
-      const inventoryItem = inventory.find((item) => item.name === requestedItem.itemName);
+      const inventoryItem = findInventoryItem(requestedItem.itemName);
       if (inventoryItem) {
         inventoryItem.quantity -= 1;
       }
@@ -669,7 +664,7 @@ document.addEventListener("DOMContentLoaded", () => {
     rentalHistory.push({
       id: request.id,
       username: request.username,
-      items: request.items,
+      items: request.items.map(normalizeRequestItem),
       status: "approved",
       requestDateISO: request.requestDateISO,
       approvedDateISO: request.approvedDateISO,
@@ -678,7 +673,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     saveState();
-    refreshAdminSelectors();
+    refreshAdminSelectors(request.items[0]?.itemName || "");
     renderInventory();
     renderRequests();
     renderRentalHistory();
@@ -698,7 +693,7 @@ document.addEventListener("DOMContentLoaded", () => {
     rentalHistory.push({
       id: request.id,
       username: request.username,
-      items: request.items,
+      items: request.items.map(normalizeRequestItem),
       status: "denied",
       requestDateISO: request.requestDateISO,
       deniedDateISO: request.deniedDateISO,
@@ -718,7 +713,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     historyEntry.items.forEach((returnedItem) => {
-      const inventoryItem = inventory.find((item) => item.name === returnedItem.itemName);
+      const inventoryItem = findInventoryItem(returnedItem.itemName);
       if (inventoryItem) {
         inventoryItem.quantity += 1;
       }
@@ -774,7 +769,7 @@ document.addEventListener("DOMContentLoaded", () => {
           actions.className = "record-actions";
           const returnButton = document.createElement("button");
           returnButton.textContent = "Process Return";
-          returnButton.className = "return-btn compact-btn";
+          returnButton.className = "return-btn";
           returnButton.addEventListener("click", () => markReturned(entry.id));
           actions.appendChild(returnButton);
           card.appendChild(actions);
@@ -889,9 +884,7 @@ document.addEventListener("DOMContentLoaded", () => {
       condition: document.getElementById(`${prefix}-item-condition`).value,
       quantity: Number.parseInt(document.getElementById(`${prefix}-item-qty`).value, 10),
       description: document.getElementById(`${prefix}-item-description`).value.trim(),
-      dayPrice: document.getElementById(`${prefix}-item-day-price`).value.trim(),
-      weekendPrice: document.getElementById(`${prefix}-item-weekend-price`).value.trim(),
-      weekPrice: document.getElementById(`${prefix}-item-week-price`).value.trim(),
+      checkoutDays: Number.parseInt(document.getElementById(`${prefix}-item-checkout-days`).value, 10),
     };
 
     if (!fields.name || !fields.category || !fields.description) {
@@ -904,6 +897,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return null;
     }
 
+    if (Number.isNaN(fields.checkoutDays) || fields.checkoutDays < 1 || fields.checkoutDays > 60) {
+      showNotification("Please enter a default checkout length between 1 and 60 days.");
+      return null;
+    }
+
     return fields;
   }
 
@@ -913,7 +911,7 @@ document.addEventListener("DOMContentLoaded", () => {
     item.condition = fields.condition;
     item.quantity = fields.quantity;
     item.description = fields.description;
-    item.rentalOptions = buildRentalOptions(fields.dayPrice, fields.weekendPrice, fields.weekPrice);
+    item.checkoutDays = fields.checkoutDays;
   }
 
   function clearAddItemForm() {
@@ -922,9 +920,7 @@ document.addEventListener("DOMContentLoaded", () => {
     addItemConditionSelect.value = "Good";
     addItemQtyInput.value = "";
     addItemDescriptionInput.value = "";
-    addItemDayPriceInput.value = "";
-    addItemWeekendPriceInput.value = "";
-    addItemWeekPriceInput.value = "";
+    addItemCheckoutDaysInput.value = "";
   }
 
   function addItem() {
@@ -991,9 +987,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateItemConditionSelect.disabled = disabled;
     updateItemQtyInput.disabled = disabled;
     updateItemDescriptionInput.disabled = disabled;
-    updateItemDayPriceInput.disabled = disabled;
-    updateItemWeekendPriceInput.disabled = disabled;
-    updateItemWeekPriceInput.disabled = disabled;
+    updateItemCheckoutDaysInput.disabled = disabled;
     updateItemBtn.disabled = disabled;
     resetUpdateItemBtn.disabled = disabled;
   }
@@ -1004,9 +998,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateItemConditionSelect.value = "Good";
     updateItemQtyInput.value = "";
     updateItemDescriptionInput.value = "";
-    updateItemDayPriceInput.value = "";
-    updateItemWeekendPriceInput.value = "";
-    updateItemWeekPriceInput.value = "";
+    updateItemCheckoutDaysInput.value = "";
   }
 
   function populateUpdateForm() {
@@ -1023,9 +1015,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateItemConditionSelect.value = item.condition || "Good";
     updateItemQtyInput.value = item.quantity;
     updateItemDescriptionInput.value = item.description || "";
-    updateItemDayPriceInput.value = getRentalPrice(item, "Day");
-    updateItemWeekendPriceInput.value = getRentalPrice(item, "Weekend");
-    updateItemWeekPriceInput.value = getRentalPrice(item, "Week");
+    updateItemCheckoutDaysInput.value = parsePositiveInt(item.checkoutDays, 7);
     setUpdateFieldsDisabled(false);
   }
 
@@ -1050,6 +1040,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     applyItemFields(item, fields);
+
     rentalRequests.forEach((request) => {
       request.items.forEach((requestItem) => {
         if (requestItem.itemName === originalName) {
@@ -1057,6 +1048,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     });
+
     rentalHistory.forEach((entry) => {
       entry.items.forEach((historyItem) => {
         if (historyItem.itemName === originalName) {
@@ -1064,11 +1056,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     });
+
     cart.forEach((cartItem) => {
       if (cartItem.itemName === originalName) {
         cartItem.itemName = fields.name;
       }
     });
+
     sortInventory();
     saveState();
     refreshAdminSelectors(fields.name);
@@ -1126,6 +1120,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     item.quantity -= 1;
+
     if (item.quantity === 0) {
       item.condition = "Damaged / Unavailable";
     }
@@ -1192,6 +1187,9 @@ document.addEventListener("DOMContentLoaded", () => {
   damageItemBtn.addEventListener("click", damageItem);
 
   loadState();
+  inventory = inventory.map(normalizeInventoryItem);
+  rentalRequests = rentalRequests.map(normalizeRequest);
+  rentalHistory = rentalHistory.map(normalizeRequest);
   sortInventory();
   updateCartCount();
   refreshAdminSelectors();
