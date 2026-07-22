@@ -30,7 +30,7 @@ CREATE TABLE Users (
 
     username VARCHAR(25) NOT NULL UNIQUE,
 
-    password VARCHAR(25) NOT NULL UNIQUE
+    password VARCHAR(25) NOT NULL
 );
 GO
 
