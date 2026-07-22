@@ -28,9 +28,9 @@ CREATE TABLE Users (
         NOT NULL
         DEFAULT 'Student'
 
-    username VARCHAR(25),
+    username VARCHAR(25) NOT NULL UNIQUE,
 
-    password VARCHAR(25)
+    password VARCHAR(25) NOT NULL UNIQUE
 );
 GO
 
