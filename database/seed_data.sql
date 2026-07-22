@@ -3,9 +3,9 @@ GO
 
 INSERT INTO Users (first_name, last_name, email, student_id, role)
 VALUES
-('John', 'Student', 'john.student@school.edu', 'S1001', 'Student'),
-('Maya', 'Borrower', 'maya.borrower@school.edu', 'S1002', 'Student'),
-('Amy', 'Admin', 'amy.admin@school.edu', 'A1001', 'Admin');
+('John', 'Student', 'john.student@school.edu', 'S1001', 'Student', jstudent, js123),
+('Maya', 'Borrower', 'maya.borrower@school.edu', 'S1002', 'Student', mborrower, mb123),
+('Amy', 'Admin', 'amy.admin@school.edu', 'A1001', 'Admin', admin, aa123);
 GO
 
 INSERT INTO Inventory
