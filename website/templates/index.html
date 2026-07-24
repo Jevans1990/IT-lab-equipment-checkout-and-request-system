@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lake Land IT Lab Checkout</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-
   <script>
     window.BACKEND_AUTH = {
       loginUrl: "{{ url_for('auth.login') }}",
@@ -14,8 +13,20 @@
       username: {{ (current_user.username if current_user.is_authenticated and current_user.username is defined else '')|tojson }},
       role: {{ (current_user.role if current_user.is_authenticated and current_user.role is defined else '')|tojson }}
     };
-  </script>
 
+    window.BACKEND_ROUTES = {
+      logoutUrl: "/logout",
+      submitRequestUrl: "/submit-request",
+      requestDecisionUrl: "/request-decision",
+      processReturnUrl: "/process-return"
+    };
+
+    window.BACKEND_DATA = {
+      inventory: {{ (inventory if inventory is defined else [])|tojson }},
+      pendingRequests: {{ (pending_requests if pending_requests is defined else [])|tojson }},
+      rentalHistory: {{ (rental_history if rental_history is defined else [])|tojson }}
+    };
+  </script>
   <script src="{{ url_for('static', filename='script.js') }}" defer></script>
 </head>
 <body>
@@ -37,13 +48,20 @@
   </header>
 
   <main class="page-shell">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <section id="flash-messages" class="flash-stack" aria-live="polite">
+          {% for category, message in messages %}
+            <div class="flash-message {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </section>
+      {% endif %}
+    {% endwith %}
+
     <section class="hero-card">
       <p class="eyebrow">Inventory request system</p>
       <h2>Request lab equipment, track approvals, and manage returns.</h2>
-      <p>
-        Browse available laptops, cameras, cables, chargers, and IT kits. Students and staff can
-        request free equipment checkouts, while lab admins approve requests, process returns, and watch overdue items.
-      </p>
+      <p>Browse available laptops, cameras, cables, chargers, and IT kits. Students and staff can request free equipment checkouts, while lab admins approve requests, process returns, and track overdue items.</p>
     </section>
 
     <section id="inventory-section" class="panel-card">
@@ -52,18 +70,29 @@
           <p class="eyebrow">Catalog</p>
           <h2>Available Equipment</h2>
         </div>
-        <p class="section-note">Choose an item, enter how many days you need it, then submit a request for admin approval.</p>
+        <p class="section-note">Choose an item, quantity, and checkout length, then add it to one request.</p>
       </div>
       <div id="inventory-grid" class="card-grid"></div>
+    </section>
+
+    <section id="user-requests-section" class="panel-card hidden">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Borrower view</p>
+          <h2>My Pending Requests</h2>
+        </div>
+        <p class="section-note">Requests remain here until an admin approves or denies them.</p>
+      </div>
+      <div id="user-pending-list" class="record-list"></div>
     </section>
 
     <section id="user-rentals-section" class="panel-card hidden">
       <div class="section-heading">
         <div>
           <p class="eyebrow">Borrower view</p>
-          <h2>My Rentals</h2>
+          <h2>My Checkout History</h2>
         </div>
-        <p class="section-note">View your approved, returned, denied, and overdue checkout records.</p>
+        <p class="section-note">View approved, returned, denied, and overdue checkout records.</p>
       </div>
       <div id="user-rentals-list" class="record-list"></div>
     </section>
@@ -74,7 +103,7 @@
           <p class="eyebrow">Admin tools</p>
           <h2>Lab Admin Panel</h2>
         </div>
-        <p class="section-note">Approve requests, process returns, and keep inventory records clean.</p>
+        <p class="section-note">Approve requests, process returns, and keep inventory records current.</p>
       </div>
 
       <div class="tabs">
@@ -103,7 +132,7 @@
 
               <label>
                 Category
-                <input type="text" id="add-item-category" placeholder="Example: Adapter, Laptop, Camera">
+                <input type="text" id="add-item-category" placeholder="Example: Adapter">
               </label>
 
               <label>
@@ -144,7 +173,7 @@
       <div id="update-item-tab" class="tab-content">
         <div class="tab-heading">
           <h3>Update Inventory Item</h3>
-          <p>Select an existing item, then edit the prefilled item details and save the changes.</p>
+          <p>Select an existing item, edit the prefilled details, and save the changes.</p>
         </div>
 
         <div class="admin-grid single-admin-grid">
@@ -187,7 +216,7 @@
 
             <label>
               Description
-              <input type="text" id="update-item-description" placeholder="Example: General-use laptop for coursework, testing, and lab work.">
+              <input type="text" id="update-item-description" placeholder="Example: General-use laptop for coursework and lab work">
             </label>
 
             <label class="days-field">
@@ -215,10 +244,12 @@
               <h3>Delete All of One Item</h3>
               <p class="form-note">Removes the selected item from the catalog.</p>
             </div>
+
             <label>
               Item Name
               <select id="delete-item-name"></select>
             </label>
+
             <div class="form-actions compact-actions">
               <button id="delete-item-btn" class="danger-btn compact-btn" type="button">Delete Item</button>
             </div>
@@ -227,22 +258,26 @@
           <div class="modify-form compact-panel">
             <div>
               <h3>Damage Out Item</h3>
-              <p class="form-note">Subtracts one available item and keeps a cleaner damage record.</p>
+              <p class="form-note">Subtracts one available item and records its identifiers.</p>
             </div>
+
             <label>
               Item Name
               <select id="damage-item-name"></select>
             </label>
+
             <div class="form-grid two-column-form">
               <label>
                 Serial Number
                 <input type="text" id="damage-serial-number" placeholder="Example: SN-20391">
               </label>
+
               <label>
                 Item Number
                 <input type="text" id="damage-item-number" placeholder="Example: LL-104">
               </label>
             </div>
+
             <div class="form-actions compact-actions">
               <button id="damage-item-btn" class="warning-btn compact-btn" type="button">Damage Out</button>
             </div>
@@ -253,7 +288,7 @@
       <div id="approve-requests-tab" class="tab-content">
         <div class="tab-heading">
           <h3>Pending Requests</h3>
-          <p>Approve requests only when equipment is available.</p>
+          <p>Each decision submits the request ID and selected action to Flask.</p>
         </div>
         <div id="requests-list" class="record-list"></div>
       </div>
@@ -272,6 +307,8 @@
     <form id="login-form" class="modal-content" method="POST" action="{{ url_for('auth.login') }}">
       <h2 id="login-title">Log In</h2>
       <p class="modal-help">Use your assigned lab account.</p>
+
+      <div id="login-error" class="inline-error hidden" role="alert"></div>
 
       <label>
         Username or Email
@@ -299,23 +336,34 @@
   </div>
 
   <div id="cart-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="cart-title">
-    <div class="modal-content wide-modal">
-      <h2 id="cart-title">Equipment Request List</h2>
+    <form id="request-form" class="modal-content wide-modal" method="POST" action="/submit-request">
+      <div class="modal-heading">
+        <div>
+          <h2 id="cart-title">Equipment Request List</h2>
+          <p class="modal-help">You can request several different items and more than one of the same item.</p>
+        </div>
+        <span id="request-total" class="request-total">0 items</span>
+      </div>
+
       <div id="cart-items" class="record-list"></div>
+      <div id="request-hidden-fields"></div>
+
       <div class="modal-actions split-actions">
         <button id="clear-cart" class="secondary-light-btn" type="button">Clear List</button>
+
         <div class="modal-button-group">
-          <button id="submit-rental-request" class="primary-btn" type="button">Submit Request</button>
+          <button id="submit-rental-request" class="primary-btn" type="submit">Submit Request</button>
           <button id="cart-close" class="secondary-light-btn" type="button">Close</button>
         </div>
       </div>
-    </div>
+    </form>
   </div>
 
   <div id="notification-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="notification-title">
     <div class="modal-content">
       <h2 id="notification-title">Notification</h2>
       <p id="notification-text"></p>
+
       <div class="modal-actions">
         <button id="notification-close" class="primary-btn" type="button">Close</button>
       </div>

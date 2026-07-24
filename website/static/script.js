@@ -1,8 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
   const STORAGE_KEY = "itLabCheckoutDemoState";
+  const routes = window.BACKEND_ROUTES || {};
+  const backendData = window.BACKEND_DATA || {};
 
   const defaultInventory = [
     {
+      id: "demo-laptop",
       name: "Laptop",
       category: "Computer",
       condition: "Good",
@@ -11,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
       checkoutDays: 7,
     },
     {
+      id: "demo-camera-kit",
       name: "Camera Kit",
       category: "Media",
       condition: "Good",
@@ -19,6 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
       checkoutDays: 5,
     },
     {
+      id: "demo-keyboard",
       name: "Keyboard",
       category: "Peripheral",
       condition: "Good",
@@ -27,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
       checkoutDays: 7,
     },
     {
+      id: "demo-mouse",
       name: "Mouse",
       category: "Peripheral",
       condition: "Good",
@@ -35,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
       checkoutDays: 7,
     },
     {
+      id: "demo-cable",
       name: "Cable",
       category: "Cable",
       condition: "Good",
@@ -45,6 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
       cableLengths: ["4ft", "6ft", "8ft", "10ft"],
     },
     {
+      id: "demo-wall-charger",
       name: "Wall Charger",
       category: "Charger",
       condition: "Good",
@@ -54,6 +62,7 @@ document.addEventListener("DOMContentLoaded", () => {
       chargerTypes: ["USB-A", "USB-C", "USB-C Fast Charging"],
     },
     {
+      id: "demo-car-charger",
       name: "Car Charger",
       category: "Charger",
       condition: "Good",
@@ -63,6 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
       chargerTypes: ["USB-A", "USB-C"],
     },
     {
+      id: "demo-adapter-kit",
       name: "Adapter Kit",
       category: "Kit",
       condition: "Good",
@@ -73,13 +83,15 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
 
   let currentUser = getBackendUser();
+  let inventory = defaultInventory.map(normalizeInventoryItem);
   let cart = [];
   let rentalRequests = [];
   let rentalHistory = [];
-  let inventory = cloneData(defaultInventory);
 
   const inventoryGrid = document.getElementById("inventory-grid");
   const adminSection = document.getElementById("admin-section");
+  const userRequestsSection = document.getElementById("user-requests-section");
+  const userPendingList = document.getElementById("user-pending-list");
   const userRentalsSection = document.getElementById("user-rentals-section");
   const userRentalsList = document.getElementById("user-rentals-list");
   const userRoleLabel = document.getElementById("user-role-label");
@@ -90,9 +102,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const cartCountSpan = document.getElementById("cart-count");
 
   const loginModal = document.getElementById("login-modal");
+  const loginForm = document.getElementById("login-form");
+  const loginSubmitBtn = document.getElementById("login-submit");
   const loginCancelBtn = document.getElementById("login-cancel");
+  const loginError = document.getElementById("login-error");
 
   const cartModal = document.getElementById("cart-modal");
+  const requestForm = document.getElementById("request-form");
+  const requestHiddenFields = document.getElementById("request-hidden-fields");
+  const requestTotal = document.getElementById("request-total");
   const cartItemsDiv = document.getElementById("cart-items");
   const cartCloseBtn = document.getElementById("cart-close");
   const clearCartBtn = document.getElementById("clear-cart");
@@ -134,10 +152,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const damageItemNumberInput = document.getElementById("damage-item-number");
   const damageItemBtn = document.getElementById("damage-item-btn");
 
-  function cloneData(data) {
-    return JSON.parse(JSON.stringify(data));
-  }
-
   function escapeHTML(value) {
     return String(value ?? "")
       .replaceAll("&", "&amp;")
@@ -147,14 +161,19 @@ document.addEventListener("DOMContentLoaded", () => {
       .replaceAll("'", "&#039;");
   }
 
-  function normalizeBackendRole(role) {
-    const cleanRole = String(role || "").trim().toLowerCase();
+  function toInteger(value, fallback = 0) {
+    const number = Number.parseInt(value, 10);
+    return Number.isFinite(number) ? number : fallback;
+  }
 
-    if (cleanRole === "admin" || cleanRole === "manager" || cleanRole === "lab admin") {
-      return "admin";
-    }
+  function positiveInteger(value, fallback = 1) {
+    const number = toInteger(value, fallback);
+    return number > 0 ? number : fallback;
+  }
 
-    return "user";
+  function normalizeRole(role) {
+    const normalized = String(role || "").trim().toLowerCase();
+    return ["admin", "manager", "lab admin"].includes(normalized) ? "admin" : "user";
   }
 
   function getBackendUser() {
@@ -166,111 +185,172 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return {
       username: auth.username || "User",
-      role: normalizeBackendRole(auth.role),
+      role: normalizeRole(auth.role),
     };
   }
 
-  function syncAuthUI() {
-    currentUser = getBackendUser();
-
-    if (currentUser) {
-      userRoleLabel.textContent = `Logged in as ${currentUser.username} (${currentUser.role})`;
-      logoutBtn.classList.remove("hidden");
-      loginBtn.classList.add("hidden");
-
-      if (currentUser.role === "admin") {
-        adminSection.classList.remove("hidden");
-        userRentalsSection.classList.add("hidden");
-        refreshAdminSelectors();
-      } else {
-        adminSection.classList.add("hidden");
-      }
-    } else {
-      userRoleLabel.textContent = "Not logged in";
-      logoutBtn.classList.add("hidden");
-      loginBtn.classList.remove("hidden");
-      adminSection.classList.add("hidden");
-      userRentalsSection.classList.add("hidden");
-    }
-  }
-
-  function parsePositiveInt(value, fallback = 1) {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-  }
-
-  function getCheckoutDaysFromOldRentalOptions(item) {
-    if (!Array.isArray(item.rentalOptions)) {
-      return 7;
-    }
-
-    if (item.rentalOptions.some((option) => option.period === "Week")) {
-      return 7;
-    }
-
-    if (item.rentalOptions.some((option) => option.period === "Weekend")) {
-      return 3;
-    }
-
-    return 1;
-  }
-
-  function normalizeInventoryItem(item) {
-    return {
-      name: item.name || "Unnamed Item",
-      category: item.category || "General",
-      condition: item.condition || "Good",
-      quantity: Number.isFinite(Number(item.quantity)) ? Number(item.quantity) : 0,
-      description: item.description || "No description provided.",
-      checkoutDays: parsePositiveInt(item.checkoutDays, getCheckoutDaysFromOldRentalOptions(item)),
-      cableTypes: Array.isArray(item.cableTypes) ? item.cableTypes : undefined,
-      cableLengths: Array.isArray(item.cableLengths) ? item.cableLengths : undefined,
-      chargerTypes: Array.isArray(item.chargerTypes) ? item.chargerTypes : undefined,
-    };
-  }
-
-  function normalizeRequestItem(item) {
-    const periodDays = {
-      Day: 1,
-      Weekend: 3,
-      Week: 7,
-    };
+  function normalizeInventoryItem(item, index = 0) {
+    const name = item.name ?? item.item_name ?? item.itemName ?? "Unnamed Item";
+    const quantity =
+      item.quantity_available ??
+      item.quantityAvailable ??
+      item.quantity ??
+      item.quantity_total ??
+      0;
+    const checkoutDays =
+      item.checkoutDays ??
+      item.checkout_days ??
+      item.rental_period_days ??
+      7;
 
     return {
-      itemName: item.itemName || item.name || "Unknown Item",
-      checkoutDays: parsePositiveInt(item.checkoutDays, periodDays[item.rentalPeriod] || 7),
-      extra: item.extra || {},
+      id: String(item.id ?? item.item_id ?? item.inventory_id ?? `item-${index}-${name}`),
+      name: String(name),
+      category: String(item.category ?? item.item_category ?? "General"),
+      condition: String(item.condition ?? item.item_condition ?? "Good"),
+      quantity: Math.max(0, toInteger(quantity, 0)),
+      description: String(item.description ?? "No description provided."),
+      checkoutDays: Math.min(60, positiveInteger(checkoutDays, 7)),
+      cableTypes: Array.isArray(item.cableTypes ?? item.cable_types)
+        ? item.cableTypes ?? item.cable_types
+        : [],
+      cableLengths: Array.isArray(item.cableLengths ?? item.cable_lengths)
+        ? item.cableLengths ?? item.cable_lengths
+        : [],
+      chargerTypes: Array.isArray(item.chargerTypes ?? item.charger_types)
+        ? item.chargerTypes ?? item.charger_types
+        : [],
     };
   }
 
-  function normalizeRequest(request) {
+  function normalizeRequestItem(item, index = 0) {
+    const extra = item.extra || {};
+
     return {
-      ...request,
-      items: Array.isArray(request.items) ? request.items.map(normalizeRequestItem) : [],
+      itemId: String(
+        item.itemId ??
+          item.item_id ??
+          item.inventory_id ??
+          `request-item-${index}`
+      ),
+      itemName: String(item.itemName ?? item.item_name ?? item.name ?? "Unknown Item"),
+      quantity: Math.max(
+        1,
+        positiveInteger(item.quantity ?? item.quantity_requested, 1)
+      ),
+      checkoutDays: Math.min(
+        60,
+        positiveInteger(
+          item.checkoutDays ??
+            item.checkout_days ??
+            item.rental_period_days,
+          7
+        )
+      ),
+      extra: {
+        cableType:
+          extra.cableType ??
+          item.cableType ??
+          item.cable_type ??
+          "",
+        cableLength:
+          extra.cableLength ??
+          item.cableLength ??
+          item.cable_length ??
+          "",
+        chargerType:
+          extra.chargerType ??
+          item.chargerType ??
+          item.charger_type ??
+          "",
+      },
     };
   }
 
-  function findInventoryItem(name) {
-    return inventory.find((item) => item.name.toLowerCase() === String(name).toLowerCase());
-  }
-
-  function sortInventory() {
-    inventory.sort((a, b) => a.name.localeCompare(b.name));
+  function normalizeRequest(request, index = 0) {
+    return {
+      id: String(
+        request.id ??
+          request.request_id ??
+          `request-${Date.now()}-${index}`
+      ),
+      username: String(
+        request.username ??
+          request.user_name ??
+          request.email ??
+          request.student_id ??
+          ""
+      ),
+      status: String(
+        request.status ??
+          request.request_status ??
+          "pending"
+      ).toLowerCase(),
+      requestDateISO:
+        request.requestDateISO ??
+        request.request_date ??
+        request.created_at ??
+        new Date().toISOString(),
+      dueDateISO:
+        request.dueDateISO ??
+        request.due_date ??
+        null,
+      returnedDateISO:
+        request.returnedDateISO ??
+        request.returned_date ??
+        null,
+      items: Array.isArray(request.items ?? request.request_items)
+        ? (request.items ?? request.request_items).map(normalizeRequestItem)
+        : [],
+      belongsToCurrentUser: Boolean(
+        request.belongsToCurrentUser ??
+          request.belongs_to_current_user
+      ),
+    };
   }
 
   function loadState() {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved) {
-      return;
+
+    if (saved) {
+      try {
+        const data = JSON.parse(saved);
+
+        if (Array.isArray(data.inventory)) {
+          inventory = data.inventory.map(normalizeInventoryItem);
+        }
+
+        if (Array.isArray(data.rentalRequests)) {
+          rentalRequests = data.rentalRequests.map(normalizeRequest);
+        }
+
+        if (Array.isArray(data.rentalHistory)) {
+          rentalHistory = data.rentalHistory.map(normalizeRequest);
+        }
+      } catch {
+        localStorage.removeItem(STORAGE_KEY);
+      }
     }
 
-    try {
-      const data = JSON.parse(saved);
-      inventory = Array.isArray(data.inventory) ? data.inventory.map(normalizeInventoryItem) : inventory;
-      rentalRequests = Array.isArray(data.rentalRequests) ? data.rentalRequests.map(normalizeRequest) : rentalRequests;
-      rentalHistory = Array.isArray(data.rentalHistory) ? data.rentalHistory.map(normalizeRequest) : rentalHistory;
-    } catch {
-      localStorage.removeItem(STORAGE_KEY);
+    if (
+      Array.isArray(backendData.inventory) &&
+      backendData.inventory.length > 0
+    ) {
+      inventory = backendData.inventory.map(normalizeInventoryItem);
+    }
+
+    if (
+      Array.isArray(backendData.pendingRequests) &&
+      backendData.pendingRequests.length > 0
+    ) {
+      rentalRequests = backendData.pendingRequests.map(normalizeRequest);
+    }
+
+    if (
+      Array.isArray(backendData.rentalHistory) &&
+      backendData.rentalHistory.length > 0
+    ) {
+      rentalHistory = backendData.rentalHistory.map(normalizeRequest);
     }
   }
 
@@ -298,12 +378,22 @@ document.addEventListener("DOMContentLoaded", () => {
     showModal(notificationModal);
   }
 
-  function formatDate(dateValue) {
-    if (!dateValue) {
+  function setLoginError(message) {
+    loginError.textContent = message;
+    loginError.classList.toggle("hidden", !message);
+  }
+
+  function formatDate(value) {
+    if (!value) {
       return "Not set";
     }
 
-    const date = new Date(dateValue);
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+
     return date.toLocaleString([], {
       month: "short",
       day: "numeric",
@@ -314,77 +404,105 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function formatDays(days) {
-    const parsedDays = parsePositiveInt(days, 1);
-    return `${parsedDays} ${parsedDays === 1 ? "day" : "days"}`;
+    const number = positiveInteger(days, 1);
+    return `${number} ${number === 1 ? "day" : "days"}`;
   }
 
-  function getCheckoutDays(items) {
-    return items.reduce((maxDays, item) => Math.max(maxDays, parsePositiveInt(item.checkoutDays, 1)), 1);
+  function formatQuantity(quantity) {
+    const number = positiveInteger(quantity, 1);
+    return `${number} ${number === 1 ? "item" : "items"}`;
   }
 
-  function getDueDate(items) {
-    const due = new Date();
-    due.setDate(due.getDate() + getCheckoutDays(items));
-    return due.toISOString();
+  function findInventoryItem(identifier) {
+    const value = String(identifier || "").toLowerCase();
+
+    return inventory.find(
+      (item) =>
+        item.id.toLowerCase() === value ||
+        item.name.toLowerCase() === value
+    );
+  }
+
+  function sortInventory() {
+    inventory.sort((a, b) => a.name.localeCompare(b.name));
   }
 
   function getAvailabilityStatus(item) {
-    const condition = String(item.condition || "").toLowerCase();
+    const condition = item.condition.toLowerCase();
 
-    if (item.quantity <= 0) {
-      return { label: "Unavailable", className: "unavailable" };
+    if (item.quantity <= 0 || condition.includes("unavailable")) {
+      return {
+        label: "Unavailable",
+        className: "unavailable",
+      };
     }
 
     if (condition.includes("damaged")) {
-      return { label: "Damaged", className: "damaged" };
+      return {
+        label: "Damaged",
+        className: "damaged",
+      };
     }
 
     if (condition.includes("repair")) {
-      return { label: "Under Repair", className: "low-stock" };
-    }
-
-    if (condition.includes("unavailable")) {
-      return { label: "Unavailable", className: "unavailable" };
+      return {
+        label: "Under Repair",
+        className: "low-stock",
+      };
     }
 
     if (item.quantity <= 3) {
-      return { label: "Low Stock", className: "low-stock" };
+      return {
+        label: "Low Stock",
+        className: "low-stock",
+      };
     }
 
-    return { label: "Available", className: "available" };
+    return {
+      label: "Available",
+      className: "available",
+    };
   }
 
   function normalizeStatus(status, dueDateISO) {
-    if (status === "approved" && dueDateISO && new Date(dueDateISO) < new Date()) {
+    if (
+      status === "approved" &&
+      dueDateISO &&
+      new Date(dueDateISO) < new Date()
+    ) {
       return "overdue";
     }
 
-    return status;
+    return status || "pending";
   }
 
   function statusBadge(status, dueDateISO) {
-    const normalized = normalizeStatus(status || "pending", dueDateISO);
-    const label = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    const normalized = normalizeStatus(status, dueDateISO);
+    const label =
+      normalized.charAt(0).toUpperCase() +
+      normalized.slice(1);
+
     return `<span class="badge ${escapeHTML(normalized)}">${escapeHTML(label)}</span>`;
   }
 
   function getExtraDescription(extra) {
-    if (!extra || Object.keys(extra).length === 0) {
-      return "";
+    const values = [];
+
+    if (extra?.cableType) {
+      values.push(`Type: ${extra.cableType}`);
     }
 
-    const parts = [];
-    if (extra.cableType) {
-      parts.push(`Type: ${extra.cableType}`);
-    }
-    if (extra.cableLength) {
-      parts.push(`Length: ${extra.cableLength}`);
-    }
-    if (extra.chargerType) {
-      parts.push(`Type: ${extra.chargerType}`);
+    if (extra?.cableLength) {
+      values.push(`Length: ${extra.cableLength}`);
     }
 
-    return parts.length ? ` (${parts.join(" | ")})` : "";
+    if (extra?.chargerType) {
+      values.push(`Type: ${extra.chargerType}`);
+    }
+
+    return values.length
+      ? ` (${values.join(" | ")})`
+      : "";
   }
 
   function renderItemList(items) {
@@ -393,156 +511,263 @@ document.addEventListener("DOMContentLoaded", () => {
         ${items
           .map(
             (item) =>
-              `<li>${escapeHTML(item.itemName)} - ${escapeHTML(formatDays(item.checkoutDays))} checkout${escapeHTML(getExtraDescription(item.extra))}</li>`
+              `<li><strong>${escapeHTML(item.quantity)}× ${escapeHTML(item.itemName)}</strong> — ${escapeHTML(formatDays(item.checkoutDays))}${escapeHTML(getExtraDescription(item.extra))}</li>`
           )
           .join("")}
       </ul>
     `;
   }
 
+  function getMaximumCheckoutDays(items) {
+    return items.reduce(
+      (largest, item) =>
+        Math.max(
+          largest,
+          positiveInteger(item.checkoutDays, 1)
+        ),
+      1
+    );
+  }
+
+  function getDueDate(items) {
+    const date = new Date();
+    date.setDate(
+      date.getDate() +
+        getMaximumCheckoutDays(items)
+    );
+    return date.toISOString();
+  }
+
+  function getCartQuantityForItem(itemId, excludedKey = "") {
+    return cart.reduce((total, entry) => {
+      if (
+        entry.itemId === itemId &&
+        entry.key !== excludedKey
+      ) {
+        return total + entry.quantity;
+      }
+
+      return total;
+    }, 0);
+  }
+
+  function createCartKey(itemId, extra) {
+    return [
+      itemId,
+      extra.cableType || "",
+      extra.cableLength || "",
+      extra.chargerType || "",
+    ].join("|");
+  }
+
   function updateCartCount() {
-    cartCountSpan.textContent = cart.length;
-    submitRentalRequestBtn.disabled = cart.length === 0;
-    clearCartBtn.disabled = cart.length === 0;
+    const count = cart.reduce(
+      (total, item) => total + item.quantity,
+      0
+    );
+
+    cartCountSpan.textContent = count;
+    requestTotal.textContent = formatQuantity(count);
+    submitRentalRequestBtn.disabled = count === 0;
+    clearCartBtn.disabled = count === 0;
   }
 
   function renderInventory() {
     inventoryGrid.innerHTML = "";
     sortInventory();
 
-    inventory.forEach((rawItem) => {
-      const item = normalizeInventoryItem(rawItem);
+    inventory.forEach((item) => {
       const status = getAvailabilityStatus(item);
       const card = document.createElement("article");
+
       card.className = "equipment-card";
 
       card.innerHTML = `
         <div class="card-top">
           <div>
             <h3 class="item-title">${escapeHTML(item.name)}</h3>
-            <p class="item-category">${escapeHTML(item.category || "General Equipment")}</p>
+            <p class="item-category">${escapeHTML(item.category)}</p>
           </div>
           <span class="badge ${escapeHTML(status.className)}">${escapeHTML(status.label)}</span>
         </div>
 
-        <p class="record-meta">${escapeHTML(item.description || "No description provided.")}</p>
+        <p class="record-meta item-description">${escapeHTML(item.description)}</p>
 
         <div class="detail-list">
           <div><span>Available:</span> ${escapeHTML(item.quantity)}</div>
-          <div><span>Condition:</span> ${escapeHTML(item.condition || "Good")}</div>
+          <div><span>Condition:</span> ${escapeHTML(item.condition)}</div>
           <div><span>Default Checkout:</span> ${escapeHTML(formatDays(item.checkoutDays))}</div>
         </div>
       `;
 
-      if (!currentUser || currentUser.role === "user") {
-        const formStack = document.createElement("div");
-        formStack.className = "option-stack";
+      if (currentUser?.role !== "admin") {
+        const optionStack = document.createElement("div");
+        optionStack.className = "option-stack";
+
+        const quantityLabel = document.createElement("label");
+        quantityLabel.textContent = "Quantity requested";
+
+        const quantityInput = document.createElement("input");
+        quantityInput.type = "number";
+        quantityInput.min = "1";
+        quantityInput.max = String(Math.max(1, item.quantity));
+        quantityInput.value = "1";
+        quantityInput.disabled = item.quantity <= 0;
+
+        quantityLabel.appendChild(quantityInput);
+        optionStack.appendChild(quantityLabel);
 
         const daysLabel = document.createElement("label");
         daysLabel.textContent = "Requested checkout days";
+
         const daysInput = document.createElement("input");
         daysInput.type = "number";
         daysInput.min = "1";
         daysInput.max = "60";
-        daysInput.value = item.checkoutDays;
-        daysInput.className = "checkout-days-input";
+        daysInput.value = String(item.checkoutDays);
+        daysInput.disabled = item.quantity <= 0;
+
         daysLabel.appendChild(daysInput);
-        formStack.appendChild(daysLabel);
+        optionStack.appendChild(daysLabel);
 
         let cableTypeSelect = null;
         let cableLengthSelect = null;
         let chargerTypeSelect = null;
 
-        if (Array.isArray(item.cableTypes) && item.cableTypes.length > 0) {
-          const cableTypeLabel = document.createElement("label");
-          cableTypeLabel.textContent = "Cable type";
-          cableTypeSelect = document.createElement("select");
-          item.cableTypes.forEach((type) => {
-            const option = document.createElement("option");
-            option.value = type;
-            option.textContent = type;
-            cableTypeSelect.appendChild(option);
-          });
-          cableTypeLabel.appendChild(cableTypeSelect);
-          formStack.appendChild(cableTypeLabel);
+        if (item.cableTypes.length > 0) {
+          const typeLabel = document.createElement("label");
+          typeLabel.textContent = "Cable type";
 
-          const cableLengthLabel = document.createElement("label");
-          cableLengthLabel.textContent = "Cable length";
-          cableLengthSelect = document.createElement("select");
-          const lengths = Array.isArray(item.cableLengths) && item.cableLengths.length > 0 ? item.cableLengths : ["6ft"];
-          lengths.forEach((length) => {
-            const option = document.createElement("option");
-            option.value = length;
-            option.textContent = length;
-            cableLengthSelect.appendChild(option);
+          cableTypeSelect = document.createElement("select");
+
+          item.cableTypes.forEach((value) => {
+            cableTypeSelect.add(new Option(value, value));
           });
-          cableLengthLabel.appendChild(cableLengthSelect);
-          formStack.appendChild(cableLengthLabel);
+
+          typeLabel.appendChild(cableTypeSelect);
+          optionStack.appendChild(typeLabel);
+
+          const lengthLabel = document.createElement("label");
+          lengthLabel.textContent = "Cable length";
+
+          cableLengthSelect = document.createElement("select");
+
+          const lengths =
+            item.cableLengths.length > 0
+              ? item.cableLengths
+              : ["6ft"];
+
+          lengths.forEach((value) => {
+            cableLengthSelect.add(new Option(value, value));
+          });
+
+          lengthLabel.appendChild(cableLengthSelect);
+          optionStack.appendChild(lengthLabel);
         }
 
-        if (Array.isArray(item.chargerTypes) && item.chargerTypes.length > 0) {
+        if (item.chargerTypes.length > 0) {
           const chargerLabel = document.createElement("label");
           chargerLabel.textContent = "Charger type";
+
           chargerTypeSelect = document.createElement("select");
-          item.chargerTypes.forEach((type) => {
-            const option = document.createElement("option");
-            option.value = type;
-            option.textContent = type;
-            chargerTypeSelect.appendChild(option);
+
+          item.chargerTypes.forEach((value) => {
+            chargerTypeSelect.add(new Option(value, value));
           });
+
           chargerLabel.appendChild(chargerTypeSelect);
-          formStack.appendChild(chargerLabel);
+          optionStack.appendChild(chargerLabel);
         }
+
+        card.appendChild(optionStack);
 
         const actions = document.createElement("div");
         actions.className = "card-actions";
+
         const addButton = document.createElement("button");
+        addButton.type = "button";
         addButton.className = "primary-btn request-card-btn";
-        addButton.textContent = currentUser ? "Add to Request" : "Log In to Request";
-        addButton.disabled = item.quantity <= 0 || status.className === "damaged" || status.className === "unavailable";
+        addButton.textContent = "Add to Request";
+        addButton.disabled =
+          item.quantity <= 0 ||
+          status.className === "damaged";
 
         addButton.addEventListener("click", () => {
-          if (!currentUser) {
-            showNotification("Please log in before requesting equipment.");
-            showModal(loginModal);
+          const quantity = toInteger(
+            quantityInput.value,
+            0
+          );
+          const checkoutDays = toInteger(
+            daysInput.value,
+            0
+          );
+
+          if (
+            quantity < 1 ||
+            quantity > item.quantity
+          ) {
+            showNotification(
+              `Enter a quantity between 1 and ${item.quantity} for ${item.name}.`
+            );
             return;
           }
 
-          const checkoutDays = parsePositiveInt(daysInput.value, item.checkoutDays);
-          if (checkoutDays < 1 || checkoutDays > 60) {
-            showNotification("Please enter a checkout length between 1 and 60 days.");
+          if (
+            checkoutDays < 1 ||
+            checkoutDays > 60
+          ) {
+            showNotification(
+              "Checkout days must be between 1 and 60."
+            );
             return;
           }
 
-          const extra = {};
-          if (cableTypeSelect && cableLengthSelect) {
-            extra.cableType = cableTypeSelect.value;
-            extra.cableLength = cableLengthSelect.value;
-          }
-          if (chargerTypeSelect) {
-            extra.chargerType = chargerTypeSelect.value;
+          const extra = {
+            cableType: cableTypeSelect?.value || "",
+            cableLength: cableLengthSelect?.value || "",
+            chargerType: chargerTypeSelect?.value || "",
+          };
+
+          const key = createCartKey(item.id, extra);
+          const existing = cart.find(
+            (entry) => entry.key === key
+          );
+          const alreadyRequested =
+            getCartQuantityForItem(item.id);
+
+          if (
+            alreadyRequested + quantity >
+            item.quantity
+          ) {
+            showNotification(
+              `Only ${item.quantity} ${item.name} items are available across this request.`
+            );
+            return;
           }
 
-          cart.push({
-            itemName: item.name,
-            checkoutDays,
-            extra,
-          });
+          if (existing) {
+            existing.quantity += quantity;
+            existing.checkoutDays = checkoutDays;
+          } else {
+            cart.push({
+              key,
+              itemId: item.id,
+              itemName: item.name,
+              quantity,
+              checkoutDays,
+              extra,
+            });
+          }
 
           updateCartCount();
-          showNotification(`${item.name} was added to your request list.`);
+
+          showNotification(
+            `${quantity} ${item.name}${quantity === 1 ? "" : " items"} added to the request list.`
+          );
         });
 
         actions.appendChild(addButton);
-        card.appendChild(formStack);
         card.appendChild(actions);
-      } else {
-        const adminDetails = document.createElement("div");
-        adminDetails.className = "detail-list";
-        adminDetails.innerHTML = `
-          <div><span>Default Checkout:</span> ${escapeHTML(formatDays(item.checkoutDays))}</div>
-        `;
-        card.appendChild(adminDetails);
       }
 
       inventoryGrid.appendChild(card);
@@ -551,75 +776,461 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderCart() {
     cartItemsDiv.innerHTML = "";
-    updateCartCount();
 
     if (cart.length === 0) {
-      cartItemsDiv.innerHTML = `<div class="empty-state">Your request list is empty.</div>`;
+      cartItemsDiv.innerHTML =
+        '<div class="empty-state">Your request list is empty.</div>';
+
+      updateCartCount();
       return;
     }
 
-    cart.forEach((item, index) => {
-      const normalizedItem = normalizeRequestItem(item);
-      const card = document.createElement("div");
-      card.className = "record-card";
+    cart.forEach((entry) => {
+      const inventoryItem =
+        findInventoryItem(entry.itemId);
+      const card =
+        document.createElement("div");
+
+      card.className =
+        "record-card request-line";
+
+      const configuration =
+        getExtraDescription(entry.extra)
+          .replace(/^ \(|\)$/g, "") ||
+        "Standard configuration";
+
       card.innerHTML = `
         <div class="record-header">
           <div>
-            <p class="record-title">${escapeHTML(normalizedItem.itemName)}</p>
-            <p class="record-meta">Checkout length: ${escapeHTML(formatDays(normalizedItem.checkoutDays))}${escapeHTML(getExtraDescription(normalizedItem.extra))}</p>
+            <p class="record-title">${escapeHTML(entry.itemName)}</p>
+            <p class="record-meta">${escapeHTML(configuration)}</p>
           </div>
+          <button class="remove-btn" type="button">Remove</button>
+        </div>
+
+        <div class="request-line-fields">
+          <label>
+            Quantity
+            <input class="cart-quantity-input" type="number" min="1" max="${escapeHTML(inventoryItem?.quantity ?? entry.quantity)}" value="${escapeHTML(entry.quantity)}">
+          </label>
+
+          <label>
+            Checkout Days
+            <input class="cart-days-input" type="number" min="1" max="60" value="${escapeHTML(entry.checkoutDays)}">
+          </label>
         </div>
       `;
 
-      const actions = document.createElement("div");
-      actions.className = "record-actions";
-      const removeButton = document.createElement("button");
-      removeButton.className = "remove-btn";
-      removeButton.textContent = "Remove";
+      const quantityInput =
+        card.querySelector(".cart-quantity-input");
+      const daysInput =
+        card.querySelector(".cart-days-input");
+      const removeButton =
+        card.querySelector(".remove-btn");
+
+      quantityInput.addEventListener("change", () => {
+        const value = toInteger(
+          quantityInput.value,
+          0
+        );
+        const available =
+          inventoryItem?.quantity ??
+          entry.quantity;
+        const otherQuantity =
+          getCartQuantityForItem(
+            entry.itemId,
+            entry.key
+          );
+
+        if (
+          value < 1 ||
+          value + otherQuantity > available
+        ) {
+          quantityInput.value =
+            String(entry.quantity);
+
+          showNotification(
+            `The total requested quantity for ${entry.itemName} cannot exceed ${available}.`
+          );
+          return;
+        }
+
+        entry.quantity = value;
+        updateCartCount();
+      });
+
+      daysInput.addEventListener("change", () => {
+        const value = toInteger(
+          daysInput.value,
+          0
+        );
+
+        if (
+          value < 1 ||
+          value > 60
+        ) {
+          daysInput.value =
+            String(entry.checkoutDays);
+
+          showNotification(
+            "Checkout days must be between 1 and 60."
+          );
+          return;
+        }
+
+        entry.checkoutDays = value;
+      });
+
       removeButton.addEventListener("click", () => {
-        cart.splice(index, 1);
+        cart = cart.filter(
+          (item) => item.key !== entry.key
+        );
+
         renderCart();
         updateCartCount();
       });
-      actions.appendChild(removeButton);
-      card.appendChild(actions);
+
       cartItemsDiv.appendChild(card);
+    });
+
+    updateCartCount();
+  }
+
+  function appendHiddenField(name, value) {
+    const input =
+      document.createElement("input");
+
+    input.type = "hidden";
+    input.name = name;
+    input.value = String(value ?? "");
+
+    requestHiddenFields.appendChild(input);
+  }
+
+  function prepareRequestForm() {
+    requestHiddenFields.innerHTML = "";
+
+    const items = cart.map((entry) => ({
+      item_id: entry.itemId,
+      item_name: entry.itemName,
+      quantity_requested: entry.quantity,
+      checkout_days: entry.checkoutDays,
+      cable_type: entry.extra.cableType || "",
+      cable_length: entry.extra.cableLength || "",
+      charger_type: entry.extra.chargerType || "",
+    }));
+
+    appendHiddenField(
+      "request_items",
+      JSON.stringify(items)
+    );
+
+    appendHiddenField(
+      "request_date",
+      new Date().toISOString()
+    );
+
+    items.forEach((item) => {
+      appendHiddenField(
+        "item_id",
+        item.item_id
+      );
+      appendHiddenField(
+        "item_name",
+        item.item_name
+      );
+      appendHiddenField(
+        "quantity_requested",
+        item.quantity_requested
+      );
+      appendHiddenField(
+        "checkout_days",
+        item.checkout_days
+      );
+      appendHiddenField(
+        "cable_type",
+        item.cable_type
+      );
+      appendHiddenField(
+        "cable_length",
+        item.cable_length
+      );
+      appendHiddenField(
+        "charger_type",
+        item.charger_type
+      );
     });
   }
 
-  function submitRentalRequest() {
-    if (!currentUser || currentUser.role !== "user") {
-      showNotification("You must be logged in as a user to submit a rental request.");
+  async function postForm(url, formData) {
+    const response = await fetch(url, {
+      method: "POST",
+      body: formData,
+      credentials: "same-origin",
+      headers: {
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+
+    let data = null;
+    let text = "";
+
+    const contentType =
+      response.headers.get("content-type") || "";
+
+    if (
+      contentType.includes("application/json")
+    ) {
+      data = await response
+        .json()
+        .catch(() => null);
+    } else {
+      text = await response
+        .text()
+        .catch(() => "");
+    }
+
+    if (
+      response.status === 404 ||
+      response.status === 405
+    ) {
+      return {
+        connected: false,
+        response,
+        data,
+        text,
+      };
+    }
+
+    if (!response.ok) {
+      const message =
+        data?.message ||
+        data?.error ||
+        "The server could not complete this action.";
+
+      const error = new Error(message);
+      error.status = response.status;
+      throw error;
+    }
+
+    return {
+      connected: true,
+      response,
+      data,
+      text,
+    };
+  }
+
+  function validateCartAvailability() {
+    for (const entry of cart) {
+      const item =
+        findInventoryItem(entry.itemId);
+
+      if (!item) {
+        return `${entry.itemName} is no longer in inventory.`;
+      }
+
+      if (
+        entry.quantity < 1 ||
+        entry.quantity > item.quantity
+      ) {
+        return `Only ${item.quantity} ${entry.itemName} items are currently available.`;
+      }
+
+      if (
+        entry.checkoutDays < 1 ||
+        entry.checkoutDays > 60
+      ) {
+        return `The checkout length for ${entry.itemName} must be between 1 and 60 days.`;
+      }
+    }
+
+    return "";
+  }
+
+  async function submitRentalRequest(event) {
+    event.preventDefault();
+
+    if (!currentUser) {
+      hideModal(cartModal);
+      setLoginError(
+        "Log in before submitting an equipment request."
+      );
+      showModal(loginModal);
+      return;
+    }
+
+    if (currentUser.role !== "user") {
+      showNotification(
+        "Admin accounts cannot submit borrower requests."
+      );
       return;
     }
 
     if (cart.length === 0) {
-      showNotification("Your request list is empty.");
+      showNotification(
+        "Add at least one item before submitting a request."
+      );
       return;
     }
 
-    const request = {
-      id: Date.now(),
-      username: currentUser.username,
-      items: cart.map(normalizeRequestItem),
-      status: "pending",
-      requestDateISO: new Date().toISOString(),
-    };
+    const validationMessage =
+      validateCartAvailability();
 
-    rentalRequests.push(request);
-    cart = [];
-    saveState();
-    updateCartCount();
-    renderCart();
-    renderRequests();
-    showNotification("Your rental request was submitted and is pending admin approval.");
+    if (validationMessage) {
+      showNotification(validationMessage);
+      return;
+    }
+
+    prepareRequestForm();
+
+    submitRentalRequestBtn.disabled = true;
+    submitRentalRequestBtn.textContent =
+      "Submitting...";
+
+    try {
+      const result = await postForm(
+        routes.submitRequestUrl ||
+          requestForm.action ||
+          "/submit-request",
+        new FormData(requestForm)
+      );
+
+      const requestId = String(
+        result.data?.request_id ??
+          result.data?.id ??
+          Date.now()
+      );
+
+      const request = {
+        id: requestId,
+        username: currentUser.username,
+        status: "pending",
+        requestDateISO:
+          new Date().toISOString(),
+        dueDateISO: null,
+        returnedDateISO: null,
+        items: cart.map((entry) =>
+          normalizeRequestItem(entry)
+        ),
+        belongsToCurrentUser: true,
+      };
+
+      if (
+        !rentalRequests.some(
+          (entry) => entry.id === request.id
+        )
+      ) {
+        rentalRequests.push(request);
+      }
+
+      cart = [];
+
+      saveState();
+      renderCart();
+      renderRequests();
+      renderUserPendingRequests();
+      hideModal(cartModal);
+
+      showNotification(
+        result.connected
+          ? `Request #${requestId} was submitted for admin approval.`
+          : `Request #${requestId} was saved in the frontend demo. The Flask /submit-request route is not connected yet.`
+      );
+    } catch (error) {
+      if (
+        error.status === 401 ||
+        error.status === 403
+      ) {
+        hideModal(cartModal);
+
+        setLoginError(
+          "Your session is not authorized to submit this request. Log in again."
+        );
+
+        showModal(loginModal);
+      } else {
+        showNotification(error.message);
+      }
+    } finally {
+      submitRentalRequestBtn.textContent =
+        "Submit Request";
+
+      updateCartCount();
+    }
+  }
+
+  function requestBelongsToCurrentUser(request) {
+    if (!currentUser) {
+      return false;
+    }
+
+    if (
+      request.belongsToCurrentUser ||
+      !request.username
+    ) {
+      return true;
+    }
+
+    return (
+      request.username.toLowerCase() ===
+      currentUser.username.toLowerCase()
+    );
+  }
+
+  function renderUserPendingRequests() {
+    if (
+      !currentUser ||
+      currentUser.role !== "user"
+    ) {
+      userRequestsSection.classList.add("hidden");
+      return;
+    }
+
+    userRequestsSection.classList.remove("hidden");
+    userPendingList.innerHTML = "";
+
+    const entries = rentalRequests.filter(
+      requestBelongsToCurrentUser
+    );
+
+    if (entries.length === 0) {
+      userPendingList.innerHTML =
+        '<div class="empty-state">You have no pending requests.</div>';
+      return;
+    }
+
+    entries
+      .slice()
+      .reverse()
+      .forEach((request) => {
+        const card =
+          document.createElement("article");
+
+        card.className = "record-card";
+
+        card.innerHTML = `
+          <div class="record-header">
+            <div>
+              <p class="record-title">Request #${escapeHTML(request.id)}</p>
+              <p class="record-meta">Submitted: ${escapeHTML(formatDate(request.requestDateISO))}</p>
+            </div>
+            ${statusBadge("pending")}
+          </div>
+
+          ${renderItemList(request.items)}
+        `;
+
+        userPendingList.appendChild(card);
+      });
   }
 
   function renderRequests() {
     requestsListDiv.innerHTML = "";
 
     if (rentalRequests.length === 0) {
-      requestsListDiv.innerHTML = `<div class="empty-state">No rental requests yet.</div>`;
+      requestsListDiv.innerHTML =
+        '<div class="empty-state">There are no pending requests.</div>';
       return;
     }
 
@@ -627,158 +1238,200 @@ document.addEventListener("DOMContentLoaded", () => {
       .slice()
       .reverse()
       .forEach((request) => {
-        const card = document.createElement("div");
-        card.className = "record-card";
-        card.innerHTML = `
+        const form =
+          document.createElement("form");
+
+        form.className =
+          "record-card decision-form";
+        form.method = "POST";
+        form.action =
+          routes.requestDecisionUrl ||
+          "/request-decision";
+
+        form.innerHTML = `
+          <input type="hidden" name="request_id" value="${escapeHTML(request.id)}">
+
           <div class="record-header">
             <div>
-              <p class="record-title">Request #${escapeHTML(request.id)}</p>
-              <p class="record-meta">Borrower: ${escapeHTML(request.username)} | Requested: ${escapeHTML(formatDate(request.requestDateISO))}</p>
-              ${request.dueDateISO ? `<p class="record-meta">Due: ${escapeHTML(formatDate(request.dueDateISO))}</p>` : ""}
+              <p class="record-title">Request #${escapeHTML(request.id)}${request.username ? ` — ${escapeHTML(request.username)}` : ""}</p>
+              <p class="record-meta">Submitted: ${escapeHTML(formatDate(request.requestDateISO))}</p>
             </div>
-            ${statusBadge(request.status, request.dueDateISO)}
+            ${statusBadge("pending")}
           </div>
+
           ${renderItemList(request.items)}
+
+          <div class="record-actions">
+            <button class="approve-btn" type="submit" name="decision" value="approve">Approve</button>
+            <button class="deny-btn" type="submit" name="decision" value="deny">Deny</button>
+          </div>
         `;
 
-        if (request.status === "pending") {
-          const actions = document.createElement("div");
-          actions.className = "request-actions";
+        form.addEventListener(
+          "submit",
+          handleRequestDecision
+        );
 
-          const approveButton = document.createElement("button");
-          approveButton.className = "approve-btn";
-          approveButton.textContent = "Approve";
-          approveButton.addEventListener("click", () => approveRequest(request.id));
-
-          const denyButton = document.createElement("button");
-          denyButton.className = "deny-btn";
-          denyButton.textContent = "Deny";
-          denyButton.addEventListener("click", () => denyRequest(request.id));
-
-          actions.appendChild(approveButton);
-          actions.appendChild(denyButton);
-          card.appendChild(actions);
-        }
-
-        requestsListDiv.appendChild(card);
+        requestsListDiv.appendChild(form);
       });
   }
 
-  function hasEnoughInventory(items) {
-    const requestedCounts = {};
-    items.forEach((item) => {
-      requestedCounts[item.itemName] = (requestedCounts[item.itemName] || 0) + 1;
-    });
+  function canApproveRequest(request) {
+    for (const requestItem of request.items) {
+      const inventoryItem =
+        findInventoryItem(requestItem.itemId) ||
+        findInventoryItem(requestItem.itemName);
 
-    return Object.entries(requestedCounts).every(([itemName, count]) => {
-      const inventoryItem = findInventoryItem(itemName);
-      const status = inventoryItem ? getAvailabilityStatus(inventoryItem) : null;
-      return inventoryItem && inventoryItem.quantity >= count && status.className !== "damaged" && status.className !== "unavailable";
-    });
-  }
-
-  function approveRequest(id) {
-    const request = rentalRequests.find((entry) => entry.id === id);
-    if (!request) {
-      return;
-    }
-
-    if (!hasEnoughInventory(request.items)) {
-      showNotification("This request cannot be approved because one or more items are no longer available.");
-      return;
-    }
-
-    request.items.forEach((requestedItem) => {
-      const inventoryItem = findInventoryItem(requestedItem.itemName);
-      if (inventoryItem) {
-        inventoryItem.quantity -= 1;
+      if (
+        !inventoryItem ||
+        inventoryItem.quantity <
+          requestItem.quantity
+      ) {
+        return false;
       }
-    });
+    }
 
-    request.status = "approved";
-    request.approvedDateISO = new Date().toISOString();
-    request.dueDateISO = getDueDate(request.items);
-
-    rentalHistory.push({
-      id: request.id,
-      username: request.username,
-      items: request.items.map(normalizeRequestItem),
-      status: "approved",
-      requestDateISO: request.requestDateISO,
-      approvedDateISO: request.approvedDateISO,
-      dueDateISO: request.dueDateISO,
-      returnedDateISO: null,
-    });
-
-    saveState();
-    refreshAdminSelectors(request.items[0]?.itemName || "");
-    renderInventory();
-    renderRequests();
-    renderRentalHistory();
-    renderUserRentals();
-    showNotification(`Request #${id} approved. Due date: ${formatDate(request.dueDateISO)}.`);
+    return true;
   }
 
-  function denyRequest(id) {
-    const request = rentalRequests.find((entry) => entry.id === id);
-    if (!request) {
+  function moveRequestToHistory(
+    request,
+    decision
+  ) {
+    rentalRequests = rentalRequests.filter(
+      (entry) => entry.id !== request.id
+    );
+
+    request.status =
+      decision === "approve"
+        ? "approved"
+        : "denied";
+
+    request.dueDateISO =
+      decision === "approve"
+        ? getDueDate(request.items)
+        : null;
+
+    if (decision === "approve") {
+      request.items.forEach((requestItem) => {
+        const inventoryItem =
+          findInventoryItem(
+            requestItem.itemId
+          ) ||
+          findInventoryItem(
+            requestItem.itemName
+          );
+
+        if (inventoryItem) {
+          inventoryItem.quantity =
+            Math.max(
+              0,
+              inventoryItem.quantity -
+                requestItem.quantity
+            );
+        }
+      });
+    }
+
+    const existingIndex =
+      rentalHistory.findIndex(
+        (entry) => entry.id === request.id
+      );
+
+    if (existingIndex >= 0) {
+      rentalHistory[existingIndex] =
+        request;
+    } else {
+      rentalHistory.push(request);
+    }
+  }
+
+  async function handleRequestDecision(event) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const submitter = event.submitter;
+    const requestId =
+      form.elements.request_id.value;
+    const decision = submitter?.value;
+
+    const request = rentalRequests.find(
+      (entry) => entry.id === requestId
+    );
+
+    if (
+      !request ||
+      !["approve", "deny"].includes(decision)
+    ) {
+      showNotification(
+        "The selected request could not be found."
+      );
       return;
     }
 
-    request.status = "denied";
-    request.deniedDateISO = new Date().toISOString();
-
-    rentalHistory.push({
-      id: request.id,
-      username: request.username,
-      items: request.items.map(normalizeRequestItem),
-      status: "denied",
-      requestDateISO: request.requestDateISO,
-      deniedDateISO: request.deniedDateISO,
-    });
-
-    saveState();
-    renderRequests();
-    renderRentalHistory();
-    renderUserRentals();
-    showNotification(`Request #${id} was denied.`);
-  }
-
-  function markReturned(id) {
-    const historyEntry = rentalHistory.find((entry) => entry.id === id && entry.status === "approved");
-    if (!historyEntry) {
+    if (
+      decision === "approve" &&
+      !canApproveRequest(request)
+    ) {
+      showNotification(
+        "This request cannot be approved because one or more items do not have enough available quantity."
+      );
       return;
     }
 
-    historyEntry.items.forEach((returnedItem) => {
-      const inventoryItem = findInventoryItem(returnedItem.itemName);
-      if (inventoryItem) {
-        inventoryItem.quantity += 1;
-      }
-    });
+    const formData = new FormData();
 
-    historyEntry.status = "returned";
-    historyEntry.returnedDateISO = new Date().toISOString();
+    formData.append(
+      "request_id",
+      requestId
+    );
+    formData.append(
+      "decision",
+      decision
+    );
 
-    const request = rentalRequests.find((entry) => entry.id === id);
-    if (request) {
-      request.status = "returned";
+    form
+      .querySelectorAll("button")
+      .forEach((button) => {
+        button.disabled = true;
+      });
+
+    try {
+      const result = await postForm(
+        form.action,
+        formData
+      );
+
+      moveRequestToHistory(
+        request,
+        decision
+      );
+
+      saveState();
+      renderAll();
+
+      showNotification(
+        result.connected
+          ? `Request #${requestId} was ${decision === "approve" ? "approved" : "denied"}.`
+          : `Request #${requestId} was ${decision === "approve" ? "approved" : "denied"} in the frontend demo. The Flask decision route is not connected yet.`
+      );
+    } catch (error) {
+      showNotification(error.message);
+
+      form
+        .querySelectorAll("button")
+        .forEach((button) => {
+          button.disabled = false;
+        });
     }
-
-    saveState();
-    refreshAdminSelectors();
-    renderInventory();
-    renderRequests();
-    renderRentalHistory();
-    renderUserRentals();
-    showNotification(`Request #${id} was marked as returned.`);
   }
 
   function renderRentalHistory() {
     rentalHistoryListDiv.innerHTML = "";
 
     if (rentalHistory.length === 0) {
-      rentalHistoryListDiv.innerHTML = `<div class="empty-state">No rental history yet.</div>`;
+      rentalHistoryListDiv.innerHTML =
+        '<div class="empty-state">No rental history is available.</div>';
       return;
     }
 
@@ -786,39 +1439,133 @@ document.addEventListener("DOMContentLoaded", () => {
       .slice()
       .reverse()
       .forEach((entry) => {
-        const normalizedStatus = normalizeStatus(entry.status, entry.dueDateISO);
-        const card = document.createElement("div");
+        const normalizedStatus =
+          normalizeStatus(
+            entry.status,
+            entry.dueDateISO
+          );
+
+        const card =
+          document.createElement("article");
+
         card.className = "record-card";
+
         card.innerHTML = `
           <div class="record-header">
             <div>
-              <p class="record-title">Request #${escapeHTML(entry.id)} - ${escapeHTML(entry.username)}</p>
+              <p class="record-title">Request #${escapeHTML(entry.id)}${entry.username ? ` — ${escapeHTML(entry.username)}` : ""}</p>
               <p class="record-meta">Requested: ${escapeHTML(formatDate(entry.requestDateISO))}</p>
               <p class="record-meta">Due: ${entry.dueDateISO ? escapeHTML(formatDate(entry.dueDateISO)) : "Not assigned"}</p>
               ${entry.returnedDateISO ? `<p class="record-meta">Returned: ${escapeHTML(formatDate(entry.returnedDateISO))}</p>` : ""}
             </div>
             ${statusBadge(entry.status, entry.dueDateISO)}
           </div>
+
           ${renderItemList(entry.items)}
         `;
 
-        if (normalizedStatus === "approved" || normalizedStatus === "overdue") {
-          const actions = document.createElement("div");
-          actions.className = "record-actions";
-          const returnButton = document.createElement("button");
-          returnButton.textContent = "Process Return";
-          returnButton.className = "return-btn";
-          returnButton.addEventListener("click", () => markReturned(entry.id));
-          actions.appendChild(returnButton);
-          card.appendChild(actions);
+        if (
+          ["approved", "overdue"].includes(
+            normalizedStatus
+          )
+        ) {
+          const form =
+            document.createElement("form");
+
+          form.className =
+            "record-actions return-form";
+          form.method = "POST";
+          form.action =
+            routes.processReturnUrl ||
+            "/process-return";
+
+          form.innerHTML = `
+            <input type="hidden" name="request_id" value="${escapeHTML(entry.id)}">
+            <button class="return-btn" type="submit">Process Return</button>
+          `;
+
+          form.addEventListener(
+            "submit",
+            handleReturn
+          );
+
+          card.appendChild(form);
         }
 
         rentalHistoryListDiv.appendChild(card);
       });
   }
 
+  async function handleReturn(event) {
+    event.preventDefault();
+
+    const form = event.currentTarget;
+    const requestId =
+      form.elements.request_id.value;
+
+    const entry = rentalHistory.find(
+      (request) => request.id === requestId
+    );
+
+    if (!entry) {
+      showNotification(
+        "The selected checkout record could not be found."
+      );
+      return;
+    }
+
+    const button =
+      form.querySelector("button");
+
+    button.disabled = true;
+
+    const formData =
+      new FormData(form);
+
+    try {
+      const result = await postForm(
+        form.action,
+        formData
+      );
+
+      entry.items.forEach((requestItem) => {
+        const inventoryItem =
+          findInventoryItem(
+            requestItem.itemId
+          ) ||
+          findInventoryItem(
+            requestItem.itemName
+          );
+
+        if (inventoryItem) {
+          inventoryItem.quantity +=
+            requestItem.quantity;
+        }
+      });
+
+      entry.status = "returned";
+      entry.returnedDateISO =
+        new Date().toISOString();
+
+      saveState();
+      renderAll();
+
+      showNotification(
+        result.connected
+          ? `Request #${requestId} was processed as returned.`
+          : `Request #${requestId} was returned in the frontend demo. The Flask return route is not connected yet.`
+      );
+    } catch (error) {
+      showNotification(error.message);
+      button.disabled = false;
+    }
+  }
+
   function renderUserRentals() {
-    if (!currentUser || currentUser.role !== "user") {
+    if (
+      !currentUser ||
+      currentUser.role !== "user"
+    ) {
       userRentalsSection.classList.add("hidden");
       return;
     }
@@ -826,73 +1573,293 @@ document.addEventListener("DOMContentLoaded", () => {
     userRentalsSection.classList.remove("hidden");
     userRentalsList.innerHTML = "";
 
-    const userEntries = rentalHistory.filter((entry) => entry.username === currentUser.username);
-    if (userEntries.length === 0) {
-      userRentalsList.innerHTML = `<div class="empty-state">You have no rentals yet.</div>`;
+    const entries = rentalHistory.filter(
+      requestBelongsToCurrentUser
+    );
+
+    if (entries.length === 0) {
+      userRentalsList.innerHTML =
+        '<div class="empty-state">You have no checkout history yet.</div>';
       return;
     }
 
-    userEntries
+    entries
       .slice()
       .reverse()
       .forEach((entry) => {
-        const card = document.createElement("div");
+        const card =
+          document.createElement("article");
+
         card.className = "record-card";
+
         card.innerHTML = `
           <div class="record-header">
             <div>
               <p class="record-title">Request #${escapeHTML(entry.id)}</p>
+              <p class="record-meta">Requested: ${escapeHTML(formatDate(entry.requestDateISO))}</p>
               <p class="record-meta">Due: ${entry.dueDateISO ? escapeHTML(formatDate(entry.dueDateISO)) : "Not assigned"}</p>
               ${entry.returnedDateISO ? `<p class="record-meta">Returned: ${escapeHTML(formatDate(entry.returnedDateISO))}</p>` : ""}
             </div>
             ${statusBadge(entry.status, entry.dueDateISO)}
           </div>
+
           ${renderItemList(entry.items)}
         `;
+
         userRentalsList.appendChild(card);
       });
   }
 
-  function handleLogout() {
-    window.location.href = window.BACKEND_AUTH?.logoutUrl || "/logout";
+  function syncAuthUI() {
+    currentUser = getBackendUser();
+
+    if (!currentUser) {
+      userRoleLabel.textContent =
+        "Not logged in";
+
+      loginBtn.classList.remove("hidden");
+      logoutBtn.classList.add("hidden");
+      cartBtn.classList.remove("hidden");
+      adminSection.classList.add("hidden");
+      userRequestsSection.classList.add("hidden");
+      userRentalsSection.classList.add("hidden");
+      return;
+    }
+
+    userRoleLabel.textContent =
+      `Logged in as ${currentUser.username} (${currentUser.role})`;
+
+    loginBtn.classList.add("hidden");
+    logoutBtn.classList.remove("hidden");
+
+    if (currentUser.role === "admin") {
+      adminSection.classList.remove("hidden");
+      userRequestsSection.classList.add("hidden");
+      userRentalsSection.classList.add("hidden");
+      cartBtn.classList.add("hidden");
+      refreshAdminSelectors();
+    } else {
+      adminSection.classList.add("hidden");
+      userRequestsSection.classList.remove("hidden");
+      userRentalsSection.classList.remove("hidden");
+      cartBtn.classList.remove("hidden");
+    }
+  }
+
+  function extractFlashMessage(html) {
+    if (!html) {
+      return "";
+    }
+
+    const documentCopy =
+      new DOMParser().parseFromString(
+        html,
+        "text/html"
+      );
+
+    return (
+      documentCopy
+        .querySelector(
+          ".flash-message.error, .flash-message"
+        )
+        ?.textContent?.trim() || ""
+    );
+  }
+
+  async function handleLoginSubmit(event) {
+    event.preventDefault();
+
+    setLoginError("");
+
+    loginSubmitBtn.disabled = true;
+    loginSubmitBtn.textContent =
+      "Logging In...";
+
+    try {
+      const response = await fetch(
+        loginForm.action,
+        {
+          method: "POST",
+          body: new FormData(loginForm),
+          credentials: "same-origin",
+          headers: {
+            "X-Requested-With":
+              "XMLHttpRequest",
+          },
+        }
+      );
+
+      const html = await response.text();
+
+      if (
+        response.ok &&
+        response.redirected
+      ) {
+        window.location.assign(
+          response.url || "/"
+        );
+        return;
+      }
+
+      const serverMessage =
+        extractFlashMessage(html);
+
+      if (!response.ok) {
+        setLoginError(
+          serverMessage ||
+            "That account was not found or the login information is incorrect."
+        );
+        return;
+      }
+
+      setLoginError(
+        serverMessage ||
+          "The username, password, or selected role is incorrect."
+      );
+    } catch {
+      setLoginError(
+        "The login request could not reach the server."
+      );
+    } finally {
+      loginSubmitBtn.disabled = false;
+      loginSubmitBtn.textContent =
+        "Log In";
+    }
+  }
+
+  function getLogoutUrl() {
+    const auth =
+      window.BACKEND_AUTH || {};
+
+    if (
+      auth.logoutUrl &&
+      auth.logoutUrl !== "/" &&
+      auth.logoutUrl !== auth.loginUrl
+    ) {
+      return auth.logoutUrl;
+    }
+
+    return routes.logoutUrl || "/logout";
+  }
+
+  async function handleLogout() {
+    logoutBtn.disabled = true;
+    logoutBtn.textContent =
+      "Logging Out...";
+
+    const logoutUrl = getLogoutUrl();
+
+    try {
+      let response = await fetch(
+        logoutUrl,
+        {
+          method: "GET",
+          credentials: "same-origin",
+          headers: {
+            "X-Requested-With":
+              "XMLHttpRequest",
+          },
+        }
+      );
+
+      if (response.status === 405) {
+        response = await fetch(
+          logoutUrl,
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "X-Requested-With":
+                "XMLHttpRequest",
+            },
+          }
+        );
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          "The Flask /logout route is not available yet."
+        );
+      }
+
+      window.location.assign(
+        response.redirected
+          ? response.url
+          : "/"
+      );
+    } catch (error) {
+      showNotification(
+        error.message ||
+          "Logout could not be completed."
+      );
+
+      logoutBtn.disabled = false;
+      logoutBtn.textContent = "Logout";
+    }
   }
 
   function getItemFormData(mode) {
-    const prefix = mode === "add" ? "add" : "update";
+    const prefix =
+      mode === "add" ? "add" : "update";
+
     const fields = {
-      name: document.getElementById(`${prefix}-item-name`).value.trim(),
-      category: document.getElementById(`${prefix}-item-category`).value.trim(),
-      condition: document.getElementById(`${prefix}-item-condition`).value,
-      quantity: Number.parseInt(document.getElementById(`${prefix}-item-qty`).value, 10),
-      description: document.getElementById(`${prefix}-item-description`).value.trim(),
-      checkoutDays: Number.parseInt(document.getElementById(`${prefix}-item-checkout-days`).value, 10),
+      name: document
+        .getElementById(`${prefix}-item-name`)
+        .value.trim(),
+      category: document
+        .getElementById(`${prefix}-item-category`)
+        .value.trim(),
+      condition: document.getElementById(
+        `${prefix}-item-condition`
+      ).value,
+      quantity: toInteger(
+        document.getElementById(
+          `${prefix}-item-qty`
+        ).value,
+        -1
+      ),
+      description: document
+        .getElementById(
+          `${prefix}-item-description`
+        )
+        .value.trim(),
+      checkoutDays: toInteger(
+        document.getElementById(
+          `${prefix}-item-checkout-days`
+        ).value,
+        0
+      ),
     };
 
-    if (!fields.name || !fields.category || !fields.description) {
-      showNotification("Please fill out item name, category, and description.");
+    if (
+      !fields.name ||
+      !fields.category ||
+      !fields.description
+    ) {
+      showNotification(
+        "Fill out the item name, category, and description."
+      );
       return null;
     }
 
-    if (Number.isNaN(fields.quantity) || fields.quantity < 0) {
-      showNotification("Please enter a valid quantity of 0 or higher.");
+    if (fields.quantity < 0) {
+      showNotification(
+        "Enter a quantity of 0 or higher."
+      );
       return null;
     }
 
-    if (Number.isNaN(fields.checkoutDays) || fields.checkoutDays < 1 || fields.checkoutDays > 60) {
-      showNotification("Please enter a default checkout length between 1 and 60 days.");
+    if (
+      fields.checkoutDays < 1 ||
+      fields.checkoutDays > 60
+    ) {
+      showNotification(
+        "Default checkout days must be between 1 and 60."
+      );
       return null;
     }
 
     return fields;
-  }
-
-  function applyItemFields(item, fields) {
-    item.name = fields.name;
-    item.category = fields.category;
-    item.condition = fields.condition;
-    item.quantity = fields.quantity;
-    item.description = fields.description;
-    item.checkoutDays = fields.checkoutDays;
   }
 
   function clearAddItemForm() {
@@ -905,252 +1872,384 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function addItem() {
-    const fields = getItemFormData("add");
+    const fields =
+      getItemFormData("add");
+
     if (!fields) {
       return;
     }
 
     if (findInventoryItem(fields.name)) {
-      showNotification(`${fields.name} already exists. Use the Update Item section to edit it.`);
+      showNotification(
+        `${fields.name} already exists. Use Update Item instead.`
+      );
       return;
     }
 
-    const newItem = {};
-    applyItemFields(newItem, fields);
-    inventory.push(newItem);
+    inventory.push(
+      normalizeInventoryItem({
+        id: `local-${Date.now()}`,
+        ...fields,
+      })
+    );
+
     sortInventory();
     clearAddItemForm();
     saveState();
     refreshAdminSelectors(fields.name);
     renderInventory();
-    showNotification(`${fields.name} was added to inventory.`);
+
+    showNotification(
+      `${fields.name} was added to inventory.`
+    );
   }
 
-  function populateItemSelect(selectElement, placeholder) {
-    const selectedValue = selectElement.value;
-    selectElement.innerHTML = "";
+  function populateItemSelect(
+    selectElement,
+    placeholder
+  ) {
+    const selected = selectElement.value;
 
-    if (placeholder) {
-      const option = document.createElement("option");
-      option.value = "";
-      option.textContent = placeholder;
-      selectElement.appendChild(option);
-    }
+    selectElement.innerHTML = "";
+    selectElement.add(
+      new Option(placeholder, "")
+    );
 
     inventory.forEach((item) => {
-      const option = document.createElement("option");
-      option.value = item.name;
-      option.textContent = item.name;
-      selectElement.appendChild(option);
+      selectElement.add(
+        new Option(item.name, item.id)
+      );
     });
 
-    if (selectedValue && inventory.some((item) => item.name === selectedValue)) {
-      selectElement.value = selectedValue;
+    if (
+      inventory.some(
+        (item) => item.id === selected
+      )
+    ) {
+      selectElement.value = selected;
     }
   }
 
-  function refreshAdminSelectors(preferredUpdateName = "") {
+  function refreshAdminSelectors(
+    preferredName = ""
+  ) {
     sortInventory();
-    populateItemSelect(updateItemSelect, "Select an item to edit");
-    populateItemSelect(deleteItemNameInput, "Select an item to delete");
-    populateItemSelect(damageItemNameInput, "Select an item to damage out");
 
-    if (preferredUpdateName && inventory.some((item) => item.name === preferredUpdateName)) {
-      updateItemSelect.value = preferredUpdateName;
+    populateItemSelect(
+      updateItemSelect,
+      "Select an item to edit"
+    );
+
+    populateItemSelect(
+      deleteItemNameInput,
+      "Select an item to delete"
+    );
+
+    populateItemSelect(
+      damageItemNameInput,
+      "Select an item to damage out"
+    );
+
+    const preferred = inventory.find(
+      (item) => item.name === preferredName
+    );
+
+    if (preferred) {
+      updateItemSelect.value = preferred.id;
     }
 
     populateUpdateForm();
   }
 
   function setUpdateFieldsDisabled(disabled) {
-    updateItemNameInput.disabled = disabled;
-    updateItemCategoryInput.disabled = disabled;
-    updateItemConditionSelect.disabled = disabled;
-    updateItemQtyInput.disabled = disabled;
-    updateItemDescriptionInput.disabled = disabled;
-    updateItemCheckoutDaysInput.disabled = disabled;
-    updateItemBtn.disabled = disabled;
-    resetUpdateItemBtn.disabled = disabled;
-  }
-
-  function clearUpdateForm() {
-    updateItemNameInput.value = "";
-    updateItemCategoryInput.value = "";
-    updateItemConditionSelect.value = "Good";
-    updateItemQtyInput.value = "";
-    updateItemDescriptionInput.value = "";
-    updateItemCheckoutDaysInput.value = "";
+    [
+      updateItemNameInput,
+      updateItemCategoryInput,
+      updateItemConditionSelect,
+      updateItemQtyInput,
+      updateItemDescriptionInput,
+      updateItemCheckoutDaysInput,
+      updateItemBtn,
+      resetUpdateItemBtn,
+    ].forEach((element) => {
+      element.disabled = disabled;
+    });
   }
 
   function populateUpdateForm() {
-    const item = findInventoryItem(updateItemSelect.value);
+    const item = findInventoryItem(
+      updateItemSelect.value
+    );
 
     if (!item) {
-      clearUpdateForm();
+      updateItemNameInput.value = "";
+      updateItemCategoryInput.value = "";
+      updateItemConditionSelect.value = "Good";
+      updateItemQtyInput.value = "";
+      updateItemDescriptionInput.value = "";
+      updateItemCheckoutDaysInput.value = "";
+
       setUpdateFieldsDisabled(true);
       return;
     }
 
     updateItemNameInput.value = item.name;
-    updateItemCategoryInput.value = item.category || "General";
-    updateItemConditionSelect.value = item.condition || "Good";
-    updateItemQtyInput.value = item.quantity;
-    updateItemDescriptionInput.value = item.description || "";
-    updateItemCheckoutDaysInput.value = parsePositiveInt(item.checkoutDays, 7);
+    updateItemCategoryInput.value =
+      item.category;
+    updateItemConditionSelect.value =
+      item.condition;
+    updateItemQtyInput.value =
+      String(item.quantity);
+    updateItemDescriptionInput.value =
+      item.description;
+    updateItemCheckoutDaysInput.value =
+      String(item.checkoutDays);
+
     setUpdateFieldsDisabled(false);
   }
 
   function updateItem() {
-    const originalName = updateItemSelect.value;
-    const item = findInventoryItem(originalName);
+    const item = findInventoryItem(
+      updateItemSelect.value
+    );
 
-    if (!item) {
-      showNotification("Please select an item to update.");
+    const fields =
+      getItemFormData("update");
+
+    if (!item || !fields) {
+      if (!item) {
+        showNotification(
+          "Select an item to update."
+        );
+      }
+
       return;
     }
 
-    const fields = getItemFormData("update");
-    if (!fields) {
+    const duplicate = inventory.find(
+      (entry) =>
+        entry.id !== item.id &&
+        entry.name.toLowerCase() ===
+          fields.name.toLowerCase()
+    );
+
+    if (duplicate) {
+      showNotification(
+        `Another item named ${fields.name} already exists.`
+      );
       return;
     }
 
-    const duplicateItem = findInventoryItem(fields.name);
-    if (duplicateItem && duplicateItem !== item) {
-      showNotification(`Another item named ${fields.name} already exists.`);
-      return;
-    }
+    Object.assign(item, fields);
 
-    applyItemFields(item, fields);
-
-    rentalRequests.forEach((request) => {
-      request.items.forEach((requestItem) => {
-        if (requestItem.itemName === originalName) {
-          requestItem.itemName = fields.name;
-        }
-      });
-    });
-
-    rentalHistory.forEach((entry) => {
-      entry.items.forEach((historyItem) => {
-        if (historyItem.itemName === originalName) {
-          historyItem.itemName = fields.name;
-        }
-      });
-    });
-
-    cart.forEach((cartItem) => {
-      if (cartItem.itemName === originalName) {
-        cartItem.itemName = fields.name;
+    cart.forEach((entry) => {
+      if (entry.itemId === item.id) {
+        entry.itemName = fields.name;
       }
     });
 
-    sortInventory();
     saveState();
     refreshAdminSelectors(fields.name);
-    renderInventory();
-    renderRequests();
-    renderRentalHistory();
-    renderUserRentals();
-    updateCartCount();
-    showNotification(`${fields.name} was updated.`);
+    renderAll();
+
+    showNotification(
+      `${fields.name} was updated.`
+    );
   }
 
   function deleteItem() {
-    const name = deleteItemNameInput.value.trim();
-    if (!name) {
-      showNotification("Please select an item to delete.");
+    const item = findInventoryItem(
+      deleteItemNameInput.value
+    );
+
+    if (!item) {
+      showNotification(
+        "Select an item to delete."
+      );
       return;
     }
 
-    const originalLength = inventory.length;
-    inventory = inventory.filter((item) => item.name.toLowerCase() !== name.toLowerCase());
+    const activeCheckout =
+      rentalHistory.some(
+        (entry) =>
+          ["approved", "overdue"].includes(
+            normalizeStatus(
+              entry.status,
+              entry.dueDateISO
+            )
+          ) &&
+          entry.items.some(
+            (requestItem) =>
+              requestItem.itemId === item.id ||
+              requestItem.itemName.toLowerCase() ===
+                item.name.toLowerCase()
+          )
+      );
 
-    if (inventory.length === originalLength) {
-      showNotification(`No item named ${name} was found.`);
+    if (activeCheckout) {
+      showNotification(
+        `${item.name} cannot be deleted while it is part of an active checkout.`
+      );
       return;
     }
 
-    cart = cart.filter((item) => item.itemName.toLowerCase() !== name.toLowerCase());
+    inventory = inventory.filter(
+      (entry) => entry.id !== item.id
+    );
+
+    cart = cart.filter(
+      (entry) => entry.itemId !== item.id
+    );
+
     saveState();
-    updateCartCount();
     refreshAdminSelectors();
-    renderInventory();
-    renderCart();
-    showNotification(`All ${name} inventory records were deleted.`);
+    renderAll();
+
+    showNotification(
+      `${item.name} was deleted from the catalog.`
+    );
   }
 
   function damageItem() {
-    const name = damageItemNameInput.value.trim();
-    const serialNumber = damageSerialInput.value.trim();
-    const itemNumber = damageItemNumberInput.value.trim();
+    const item = findInventoryItem(
+      damageItemNameInput.value
+    );
 
-    if (!name || !serialNumber || !itemNumber) {
-      showNotification("Please fill out all damage-out fields.");
-      return;
-    }
+    const serialNumber =
+      damageSerialInput.value.trim();
 
-    const item = findInventoryItem(name);
-    if (!item) {
-      showNotification(`No item named ${name} was found.`);
+    const itemNumber =
+      damageItemNumberInput.value.trim();
+
+    if (
+      !item ||
+      !serialNumber ||
+      !itemNumber
+    ) {
+      showNotification(
+        "Select an item and fill out both damage identifiers."
+      );
       return;
     }
 
     if (item.quantity <= 0) {
-      showNotification(`${name} already has no available quantity to damage out.`);
+      showNotification(
+        `${item.name} has no available quantity to damage out.`
+      );
       return;
     }
 
     item.quantity -= 1;
 
     if (item.quantity === 0) {
-      item.condition = "Damaged / Unavailable";
+      item.condition =
+        "Damaged / Unavailable";
     }
 
     damageSerialInput.value = "";
     damageItemNumberInput.value = "";
 
     saveState();
-    refreshAdminSelectors(name);
+    refreshAdminSelectors(item.name);
     renderInventory();
-    showNotification(`${name} with serial ${serialNumber} and item number ${itemNumber} was damaged out.`);
+
+    showNotification(
+      `${item.name}, serial ${serialNumber}, item ${itemNumber}, was damaged out.`
+    );
+  }
+
+  function renderAll() {
+    updateCartCount();
+    syncAuthUI();
+    renderInventory();
+    renderCart();
+    renderRequests();
+    renderRentalHistory();
+    renderUserPendingRequests();
+    renderUserRentals();
   }
 
   tabButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      const targetTab = button.getAttribute("data-tab");
+      tabButtons.forEach((entry) => {
+        entry.classList.remove("active");
+      });
 
-      tabButtons.forEach((tabButton) => tabButton.classList.remove("active"));
-      tabContents.forEach((tabContent) => tabContent.classList.remove("active"));
+      tabContents.forEach((entry) => {
+        entry.classList.remove("active");
+      });
 
       button.classList.add("active");
-      document.getElementById(targetTab).classList.add("active");
 
-      if (targetTab === "update-item-tab" || targetTab === "modify-items-tab") {
+      document
+        .getElementById(button.dataset.tab)
+        .classList.add("active");
+
+      if (
+        [
+          "update-item-tab",
+          "modify-items-tab",
+        ].includes(button.dataset.tab)
+      ) {
         refreshAdminSelectors();
       }
     });
   });
 
-  loginBtn.addEventListener("click", () => showModal(loginModal));
-  loginCancelBtn.addEventListener("click", () => hideModal(loginModal));
-  logoutBtn.addEventListener("click", handleLogout);
+  loginBtn.addEventListener("click", () => {
+    setLoginError("");
+    showModal(loginModal);
+  });
+
+  loginForm.addEventListener(
+    "submit",
+    handleLoginSubmit
+  );
+
+  loginCancelBtn.addEventListener(
+    "click",
+    () => hideModal(loginModal)
+  );
+
+  logoutBtn.addEventListener(
+    "click",
+    handleLogout
+  );
 
   cartBtn.addEventListener("click", () => {
     renderCart();
     showModal(cartModal);
   });
 
-  cartCloseBtn.addEventListener("click", () => hideModal(cartModal));
-  submitRentalRequestBtn.addEventListener("click", submitRentalRequest);
-  clearCartBtn.addEventListener("click", () => {
-    cart = [];
-    renderCart();
-    updateCartCount();
-  });
+  cartCloseBtn.addEventListener(
+    "click",
+    () => hideModal(cartModal)
+  );
 
-  notificationCloseBtn.addEventListener("click", () => hideModal(notificationModal));
+  requestForm.addEventListener(
+    "submit",
+    submitRentalRequest
+  );
 
-  [loginModal, cartModal, notificationModal].forEach((modal) => {
+  clearCartBtn.addEventListener(
+    "click",
+    () => {
+      cart = [];
+      renderCart();
+      updateCartCount();
+    }
+  );
+
+  notificationCloseBtn.addEventListener(
+    "click",
+    () => hideModal(notificationModal)
+  );
+
+  [
+    loginModal,
+    cartModal,
+    notificationModal,
+  ].forEach((modal) => {
     modal.addEventListener("click", (event) => {
       if (event.target === modal) {
         hideModal(modal);
@@ -1158,24 +2257,42 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  addItemBtn.addEventListener("click", addItem);
-  clearAddItemBtn.addEventListener("click", clearAddItemForm);
-  updateItemSelect.addEventListener("change", populateUpdateForm);
-  updateItemBtn.addEventListener("click", updateItem);
-  resetUpdateItemBtn.addEventListener("click", populateUpdateForm);
-  deleteItemBtn.addEventListener("click", deleteItem);
-  damageItemBtn.addEventListener("click", damageItem);
+  addItemBtn.addEventListener(
+    "click",
+    addItem
+  );
+
+  clearAddItemBtn.addEventListener(
+    "click",
+    clearAddItemForm
+  );
+
+  updateItemSelect.addEventListener(
+    "change",
+    populateUpdateForm
+  );
+
+  updateItemBtn.addEventListener(
+    "click",
+    updateItem
+  );
+
+  resetUpdateItemBtn.addEventListener(
+    "click",
+    populateUpdateForm
+  );
+
+  deleteItemBtn.addEventListener(
+    "click",
+    deleteItem
+  );
+
+  damageItemBtn.addEventListener(
+    "click",
+    damageItem
+  );
 
   loadState();
-  inventory = inventory.map(normalizeInventoryItem);
-  rentalRequests = rentalRequests.map(normalizeRequest);
-  rentalHistory = rentalHistory.map(normalizeRequest);
   sortInventory();
-  updateCartCount();
-  syncAuthUI();
-  refreshAdminSelectors();
-  renderInventory();
-  renderRequests();
-  renderRentalHistory();
-  renderUserRentals();
+  renderAll();
 });
