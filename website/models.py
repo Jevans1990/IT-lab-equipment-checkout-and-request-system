@@ -1,6 +1,7 @@
 from flask_login import UserMixin
 
 class User(UserMixin):
+    # Class for converting a user's information to a flask login object
     def __init__(self, row):
         self.id = row[0]
         self.first_name = row[1]
