@@ -26,7 +26,7 @@ CREATE TABLE Users (
 
     role VARCHAR(25)
         NOT NULL
-        DEFAULT 'Student'
+        DEFAULT 'Student',
 
     username VARCHAR(25) NOT NULL UNIQUE,
 
@@ -47,7 +47,12 @@ CREATE TABLE Inventory (
         CHECK (quantity_total >= 0),
 
     quantity_available INT NOT NULL
-        CHECK (quantity_available >= 0),
+        CHECK (quantity_available >= 0
+                AND quantity_available <= quantity_total),
+
+    item_category VARCHAR(50) NOT NULL DEFAULT 'General',
+    
+    item_condition VARCHAR(25) NOT NULL DEFAULT 'Good',
 
     description VARCHAR(255),
 
@@ -109,6 +114,8 @@ CREATE TABLE RequestItems (
         DEFAULT 1
         CHECK (quantity_requested > 0),
 
+    user_id INT NOT NULL,
+
     CONSTRAINT FK_RequestItems_Request
         FOREIGN KEY (request_id)
         REFERENCES Requests(request_id),
@@ -116,6 +123,10 @@ CREATE TABLE RequestItems (
     CONSTRAINT FK_RequestItems_Inventory
         FOREIGN KEY (item_id)
         REFERENCES Inventory(item_id)
+
+    CONSTRAINT FK_RequestItems_User
+        FOREIGN KEY (user_id)
+        REFERENCES Users(user_id)
 
 );
 GO
