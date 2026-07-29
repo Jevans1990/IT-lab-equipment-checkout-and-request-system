@@ -1,156 +1,184 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const STORAGE_KEY = "itLabCheckoutDemoState";
+  const auth = window.BACKEND_AUTH || {};
   const routes = window.BACKEND_ROUTES || {};
   const backendData = window.BACKEND_DATA || {};
 
-  const defaultInventory = [
-    {
-      id: "demo-laptop",
-      name: "Laptop",
-      category: "Computer",
-      condition: "Good",
-      quantity: 10,
-      description: "General-use laptop for coursework, testing, and lab work.",
-      checkoutDays: 7,
-    },
-    {
-      id: "demo-camera-kit",
-      name: "Camera Kit",
-      category: "Media",
-      condition: "Good",
-      quantity: 6,
-      description: "Camera, battery, charger, and carrying case for class projects.",
-      checkoutDays: 5,
-    },
-    {
-      id: "demo-keyboard",
-      name: "Keyboard",
-      category: "Peripheral",
-      condition: "Good",
-      quantity: 15,
-      description: "USB keyboard for lab stations, testing, or temporary checkout.",
-      checkoutDays: 7,
-    },
-    {
-      id: "demo-mouse",
-      name: "Mouse",
-      category: "Peripheral",
-      condition: "Good",
-      quantity: 20,
-      description: "Wired mouse for lab stations and temporary student use.",
-      checkoutDays: 7,
-    },
-    {
-      id: "demo-cable",
-      name: "Cable",
-      category: "Cable",
-      condition: "Good",
-      quantity: 40,
-      description: "Common USB cables for charging, data transfer, and adapters.",
-      checkoutDays: 3,
-      cableTypes: ["USB-A to USB-C", "USB-C to USB-C", "Micro USB", "Mini USB"],
-      cableLengths: ["4ft", "6ft", "8ft", "10ft"],
-    },
-    {
-      id: "demo-wall-charger",
-      name: "Wall Charger",
-      category: "Charger",
-      condition: "Good",
-      quantity: 25,
-      description: "Wall charger blocks for phones, tablets, and small devices.",
-      checkoutDays: 3,
-      chargerTypes: ["USB-A", "USB-C", "USB-C Fast Charging"],
-    },
-    {
-      id: "demo-car-charger",
-      name: "Car Charger",
-      category: "Charger",
-      condition: "Good",
-      quantity: 18,
-      description: "Vehicle charger for mobile devices during travel or field work.",
-      checkoutDays: 3,
-      chargerTypes: ["USB-A", "USB-C"],
-    },
-    {
-      id: "demo-adapter-kit",
-      name: "Adapter Kit",
-      category: "Kit",
-      condition: "Good",
-      quantity: 4,
-      description: "Mixed adapter kit with HDMI, USB-C, Ethernet, and display adapters.",
-      checkoutDays: 5,
-    },
-  ];
+  let inventory = Array.isArray(backendData.inventory)
+    ? backendData.inventory.map(normalizeInventoryItem)
+    : [];
 
-  let currentUser = getBackendUser();
-  let inventory = defaultInventory.map(normalizeInventoryItem);
+  let pendingRequests = Array.isArray(
+    backendData.pendingRequests
+  )
+    ? backendData.pendingRequests.map(normalizeRequest)
+    : [];
+
+  let rentalHistory = Array.isArray(
+    backendData.rentalHistory
+  )
+    ? backendData.rentalHistory.map(normalizeRequest)
+    : [];
+
   let cart = [];
-  let rentalRequests = [];
-  let rentalHistory = [];
 
-  const inventoryGrid = document.getElementById("inventory-grid");
-  const adminSection = document.getElementById("admin-section");
-  const userRequestsSection = document.getElementById("user-requests-section");
-  const userPendingList = document.getElementById("user-pending-list");
-  const userRentalsSection = document.getElementById("user-rentals-section");
-  const userRentalsList = document.getElementById("user-rentals-list");
-  const userRoleLabel = document.getElementById("user-role-label");
+  const currentUser = auth.isAuthenticated
+    ? {
+        username: String(auth.username || "User"),
+        role: normalizeRole(auth.role),
+      }
+    : null;
 
-  const loginBtn = document.getElementById("login-btn");
-  const logoutBtn = document.getElementById("logout-btn");
-  const cartBtn = document.getElementById("cart-btn");
-  const cartCountSpan = document.getElementById("cart-count");
+  const elements = {
+    inventoryGrid:
+      document.getElementById("inventory-grid"),
 
-  const loginModal = document.getElementById("login-modal");
-  const loginForm = document.getElementById("login-form");
-  const loginSubmitBtn = document.getElementById("login-submit");
-  const loginCancelBtn = document.getElementById("login-cancel");
-  const loginError = document.getElementById("login-error");
+    adminSection:
+      document.getElementById("admin-section"),
 
-  const cartModal = document.getElementById("cart-modal");
-  const requestForm = document.getElementById("request-form");
-  const requestHiddenFields = document.getElementById("request-hidden-fields");
-  const requestTotal = document.getElementById("request-total");
-  const cartItemsDiv = document.getElementById("cart-items");
-  const cartCloseBtn = document.getElementById("cart-close");
-  const clearCartBtn = document.getElementById("clear-cart");
-  const submitRentalRequestBtn = document.getElementById("submit-rental-request");
+    userRequestsSection:
+      document.getElementById(
+        "user-requests-section"
+      ),
 
-  const notificationModal = document.getElementById("notification-modal");
-  const notificationText = document.getElementById("notification-text");
-  const notificationCloseBtn = document.getElementById("notification-close");
+    userPendingList:
+      document.getElementById(
+        "user-pending-list"
+      ),
 
-  const tabButtons = document.querySelectorAll(".tab-btn");
-  const tabContents = document.querySelectorAll(".tab-content");
-  const requestsListDiv = document.getElementById("requests-list");
-  const rentalHistoryListDiv = document.getElementById("rental-history-list");
+    userRentalsSection:
+      document.getElementById(
+        "user-rentals-section"
+      ),
 
-  const addItemNameInput = document.getElementById("add-item-name");
-  const addItemCategoryInput = document.getElementById("add-item-category");
-  const addItemConditionSelect = document.getElementById("add-item-condition");
-  const addItemQtyInput = document.getElementById("add-item-qty");
-  const addItemDescriptionInput = document.getElementById("add-item-description");
-  const addItemCheckoutDaysInput = document.getElementById("add-item-checkout-days");
-  const addItemBtn = document.getElementById("add-item-btn");
-  const clearAddItemBtn = document.getElementById("clear-add-item-btn");
+    userRentalsList:
+      document.getElementById(
+        "user-rentals-list"
+      ),
 
-  const updateItemSelect = document.getElementById("update-item-select");
-  const updateItemNameInput = document.getElementById("update-item-name");
-  const updateItemCategoryInput = document.getElementById("update-item-category");
-  const updateItemConditionSelect = document.getElementById("update-item-condition");
-  const updateItemQtyInput = document.getElementById("update-item-qty");
-  const updateItemDescriptionInput = document.getElementById("update-item-description");
-  const updateItemCheckoutDaysInput = document.getElementById("update-item-checkout-days");
-  const updateItemBtn = document.getElementById("update-item-btn");
-  const resetUpdateItemBtn = document.getElementById("reset-update-item-btn");
+    userRoleLabel:
+      document.getElementById("user-role-label"),
 
-  const deleteItemNameInput = document.getElementById("delete-item-name");
-  const deleteItemBtn = document.getElementById("delete-item-btn");
+    loginBtn:
+      document.getElementById("login-btn"),
 
-  const damageItemNameInput = document.getElementById("damage-item-name");
-  const damageSerialInput = document.getElementById("damage-serial-number");
-  const damageItemNumberInput = document.getElementById("damage-item-number");
-  const damageItemBtn = document.getElementById("damage-item-btn");
+    logoutBtn:
+      document.getElementById("logout-btn"),
+
+    cartBtn:
+      document.getElementById("cart-btn"),
+
+    cartCount:
+      document.getElementById("cart-count"),
+
+    loginModal:
+      document.getElementById("login-modal"),
+
+    loginForm:
+      document.getElementById("login-form"),
+
+    loginSubmit:
+      document.getElementById("login-submit"),
+
+    loginCancel:
+      document.getElementById("login-cancel"),
+
+    loginError:
+      document.getElementById("login-error"),
+
+    cartModal:
+      document.getElementById("cart-modal"),
+
+    requestForm:
+      document.getElementById("request-form"),
+
+    requestHiddenFields:
+      document.getElementById(
+        "request-hidden-fields"
+      ),
+
+    requestTotal:
+      document.getElementById("request-total"),
+
+    cartItems:
+      document.getElementById("cart-items"),
+
+    cartClose:
+      document.getElementById("cart-close"),
+
+    clearCart:
+      document.getElementById("clear-cart"),
+
+    submitRequest:
+      document.getElementById(
+        "submit-rental-request"
+      ),
+
+    notificationModal:
+      document.getElementById(
+        "notification-modal"
+      ),
+
+    notificationText:
+      document.getElementById(
+        "notification-text"
+      ),
+
+    notificationClose:
+      document.getElementById(
+        "notification-close"
+      ),
+
+    requestsList:
+      document.getElementById("requests-list"),
+
+    rentalHistoryList:
+      document.getElementById(
+        "rental-history-list"
+      ),
+
+    addItemForm:
+      document.getElementById("add-item-form"),
+
+    updateItemForm:
+      document.getElementById(
+        "update-item-form"
+      ),
+
+    deleteItemForm:
+      document.getElementById(
+        "delete-item-form"
+      ),
+
+    damageItemForm:
+      document.getElementById(
+        "damage-item-form"
+      ),
+
+    updateItemSelect:
+      document.getElementById(
+        "update-item-select"
+      ),
+
+    deleteItemSelect:
+      document.getElementById(
+        "delete-item-name"
+      ),
+
+    damageItemSelect:
+      document.getElementById(
+        "damage-item-name"
+      ),
+
+    clearAddItem:
+      document.getElementById(
+        "clear-add-item-btn"
+      ),
+
+    resetUpdateItem:
+      document.getElementById(
+        "reset-update-item-btn"
+      ),
+  };
 
   function escapeHTML(value) {
     return String(value ?? "")
@@ -163,224 +191,229 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function toInteger(value, fallback = 0) {
     const number = Number.parseInt(value, 10);
-    return Number.isFinite(number) ? number : fallback;
+
+    return Number.isFinite(number)
+      ? number
+      : fallback;
   }
 
-  function positiveInteger(value, fallback = 1) {
+  function positiveInteger(
+    value,
+    fallback = 1
+  ) {
     const number = toInteger(value, fallback);
-    return number > 0 ? number : fallback;
+
+    return number > 0
+      ? number
+      : fallback;
   }
 
   function normalizeRole(role) {
-    const normalized = String(role || "").trim().toLowerCase();
-    return ["admin", "manager", "lab admin"].includes(normalized) ? "admin" : "user";
+    const normalized = String(role || "")
+      .trim()
+      .toLowerCase();
+
+    return [
+      "admin",
+      "manager",
+      "lab admin",
+    ].includes(normalized)
+      ? "admin"
+      : "user";
   }
 
-  function getBackendUser() {
-    const auth = window.BACKEND_AUTH || {};
+  function normalizeInventoryItem(
+    item,
+    index = 0
+  ) {
+    const name =
+      item.name ??
+      item.item_name ??
+      item.itemName ??
+      "Unnamed Item";
 
-    if (!auth.isAuthenticated) {
-      return null;
-    }
-
-    return {
-      username: auth.username || "User",
-      role: normalizeRole(auth.role),
-    };
-  }
-
-  function normalizeInventoryItem(item, index = 0) {
-    const name = item.name ?? item.item_name ?? item.itemName ?? "Unnamed Item";
-    const quantity =
+    const available =
       item.quantity_available ??
       item.quantityAvailable ??
       item.quantity ??
       item.quantity_total ??
       0;
-    const checkoutDays =
-      item.checkoutDays ??
-      item.checkout_days ??
-      item.rental_period_days ??
-      7;
+
+    const total =
+      item.quantity_total ??
+      item.quantityTotal ??
+      item.totalQuantity ??
+      available;
 
     return {
-      id: String(item.id ?? item.item_id ?? item.inventory_id ?? `item-${index}-${name}`),
-      name: String(name),
-      category: String(item.category ?? item.item_category ?? "General"),
-      condition: String(item.condition ?? item.item_condition ?? "Good"),
-      quantity: Math.max(0, toInteger(quantity, 0)),
-      description: String(item.description ?? "No description provided."),
-      checkoutDays: Math.min(60, positiveInteger(checkoutDays, 7)),
-      cableTypes: Array.isArray(item.cableTypes ?? item.cable_types)
-        ? item.cableTypes ?? item.cable_types
-        : [],
-      cableLengths: Array.isArray(item.cableLengths ?? item.cable_lengths)
-        ? item.cableLengths ?? item.cable_lengths
-        : [],
-      chargerTypes: Array.isArray(item.chargerTypes ?? item.charger_types)
-        ? item.chargerTypes ?? item.charger_types
-        : [],
-    };
-  }
-
-  function normalizeRequestItem(item, index = 0) {
-    const extra = item.extra || {};
-
-    return {
-      itemId: String(
-        item.itemId ??
-          item.item_id ??
+      id: String(
+        item.item_id ??
           item.inventory_id ??
-          `request-item-${index}`
+          item.id ??
+          `item-${index}`
       ),
-      itemName: String(item.itemName ?? item.item_name ?? item.name ?? "Unknown Item"),
-      quantity: Math.max(
-        1,
-        positiveInteger(item.quantity ?? item.quantity_requested, 1)
+
+      name: String(name),
+
+      category: String(
+        item.item_category ??
+          item.category ??
+          "General"
       ),
+
+      condition: String(
+        item.item_condition ??
+          item.condition ??
+          "Good"
+      ),
+
+      quantityAvailable: Math.max(
+        0,
+        toInteger(available, 0)
+      ),
+
+      quantityTotal: Math.max(
+        0,
+        toInteger(total, 0)
+      ),
+
+      description: String(
+        item.description ??
+          "No description provided."
+      ),
+
+      availabilityStatus: String(
+        item.availability_status ??
+          item.availabilityStatus ??
+          "Available"
+      ),
+
       checkoutDays: Math.min(
         60,
         positiveInteger(
-          item.checkoutDays ??
+          item.rental_period_days ??
             item.checkout_days ??
-            item.rental_period_days,
+            item.checkoutDays,
           7
         )
       ),
-      extra: {
-        cableType:
-          extra.cableType ??
-          item.cableType ??
-          item.cable_type ??
-          "",
-        cableLength:
-          extra.cableLength ??
-          item.cableLength ??
-          item.cable_length ??
-          "",
-        chargerType:
-          extra.chargerType ??
-          item.chargerType ??
-          item.charger_type ??
-          "",
-      },
     };
   }
 
-  function normalizeRequest(request, index = 0) {
+  function normalizeRequestItem(
+    item,
+    index = 0
+  ) {
+    return {
+      itemId: String(
+        item.item_id ??
+          item.itemId ??
+          `request-item-${index}`
+      ),
+
+      itemName: String(
+        item.item_name ??
+          item.itemName ??
+          item.name ??
+          "Unknown Item"
+      ),
+
+      quantity: positiveInteger(
+        item.quantity_requested ??
+          item.quantity,
+        1
+      ),
+
+      checkoutDays: Math.min(
+        60,
+        positiveInteger(
+          item.rental_period_days ??
+            item.checkout_days ??
+            item.checkoutDays,
+          7
+        )
+      ),
+    };
+  }
+
+  function normalizeRequest(
+    request,
+    index = 0
+  ) {
+    const items =
+      request.items ??
+      request.request_items ??
+      [];
+
     return {
       id: String(
-        request.id ??
-          request.request_id ??
-          `request-${Date.now()}-${index}`
+        request.request_id ??
+          request.id ??
+          `request-${index}`
       ),
+
       username: String(
         request.username ??
           request.user_name ??
           request.email ??
-          request.student_id ??
           ""
       ),
+
       status: String(
-        request.status ??
-          request.request_status ??
-          "pending"
+        request.request_status ??
+          request.status ??
+          "Pending"
       ).toLowerCase(),
-      requestDateISO:
-        request.requestDateISO ??
+
+      requestDate:
         request.request_date ??
-        request.created_at ??
-        new Date().toISOString(),
-      dueDateISO:
-        request.dueDateISO ??
+        request.requestDateISO ??
+        null,
+
+      dueDate:
         request.due_date ??
+        request.dueDateISO ??
         null,
-      returnedDateISO:
-        request.returnedDateISO ??
+
+      returnedDate:
         request.returned_date ??
+        request.returnedDateISO ??
         null,
-      items: Array.isArray(request.items ?? request.request_items)
-        ? (request.items ?? request.request_items).map(normalizeRequestItem)
-        : [],
+
       belongsToCurrentUser: Boolean(
-        request.belongsToCurrentUser ??
-          request.belongs_to_current_user
+        request.belongs_to_current_user ??
+          request.belongsToCurrentUser
       ),
+
+      items: Array.isArray(items)
+        ? items.map(normalizeRequestItem)
+        : [],
     };
   }
 
-  function loadState() {
-    const saved = localStorage.getItem(STORAGE_KEY);
-
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-
-        if (Array.isArray(data.inventory)) {
-          inventory = data.inventory.map(normalizeInventoryItem);
-        }
-
-        if (Array.isArray(data.rentalRequests)) {
-          rentalRequests = data.rentalRequests.map(normalizeRequest);
-        }
-
-        if (Array.isArray(data.rentalHistory)) {
-          rentalHistory = data.rentalHistory.map(normalizeRequest);
-        }
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    }
-
-    if (
-      Array.isArray(backendData.inventory) &&
-      backendData.inventory.length > 0
-    ) {
-      inventory = backendData.inventory.map(normalizeInventoryItem);
-    }
-
-    if (
-      Array.isArray(backendData.pendingRequests) &&
-      backendData.pendingRequests.length > 0
-    ) {
-      rentalRequests = backendData.pendingRequests.map(normalizeRequest);
-    }
-
-    if (
-      Array.isArray(backendData.rentalHistory) &&
-      backendData.rentalHistory.length > 0
-    ) {
-      rentalHistory = backendData.rentalHistory.map(normalizeRequest);
-    }
-  }
-
-  function saveState() {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        inventory,
-        rentalRequests,
-        rentalHistory,
-      })
-    );
-  }
-
   function showModal(modal) {
-    modal.classList.remove("hidden");
+    modal?.classList.remove("hidden");
   }
 
   function hideModal(modal) {
-    modal.classList.add("hidden");
+    modal?.classList.add("hidden");
   }
 
   function showNotification(message) {
-    notificationText.textContent = message;
-    showModal(notificationModal);
+    elements.notificationText.textContent =
+      message;
+
+    showModal(elements.notificationModal);
   }
 
   function setLoginError(message) {
-    loginError.textContent = message;
-    loginError.classList.toggle("hidden", !message);
+    elements.loginError.textContent =
+      message;
+
+    elements.loginError.classList.toggle(
+      "hidden",
+      !message
+    );
   }
 
   function formatDate(value) {
@@ -388,49 +421,84 @@ document.addEventListener("DOMContentLoaded", () => {
       return "Not set";
     }
 
-    const date = new Date(value);
+    const raw = String(value);
+
+    const dateOnly =
+      /^\d{4}-\d{2}-\d{2}$/.test(raw);
+
+    const date = new Date(
+      dateOnly
+        ? `${raw}T00:00:00`
+        : raw
+    );
 
     if (Number.isNaN(date.getTime())) {
-      return String(value);
+      return raw;
     }
 
-    return date.toLocaleString([], {
+    const options = {
+      year: "numeric",
       month: "short",
       day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
+    };
+
+    if (!dateOnly) {
+      options.hour = "numeric";
+      options.minute = "2-digit";
+    }
+
+    return date.toLocaleString([], options);
   }
 
   function formatDays(days) {
-    const number = positiveInteger(days, 1);
-    return `${number} ${number === 1 ? "day" : "days"}`;
+    const value = positiveInteger(days, 1);
+
+    return `${value} ${
+      value === 1
+        ? "day"
+        : "days"
+    }`;
   }
 
-  function formatQuantity(quantity) {
-    const number = positiveInteger(quantity, 1);
-    return `${number} ${number === 1 ? "item" : "items"}`;
+  function statusBadge(
+    status,
+    dueDate
+  ) {
+    let normalized = String(
+      status || "pending"
+    ).toLowerCase();
+
+    if (
+      normalized === "approved" &&
+      dueDate &&
+      new Date(dueDate) < new Date()
+    ) {
+      normalized = "overdue";
+    }
+
+    const label =
+      normalized.charAt(0).toUpperCase() +
+      normalized.slice(1);
+
+    return `
+      <span class="badge ${escapeHTML(normalized)}">
+        ${escapeHTML(label)}
+      </span>
+    `;
   }
 
-  function findInventoryItem(identifier) {
-    const value = String(identifier || "").toLowerCase();
+  function inventoryStatus(item) {
+    const condition =
+      item.condition.toLowerCase();
 
-    return inventory.find(
-      (item) =>
-        item.id.toLowerCase() === value ||
-        item.name.toLowerCase() === value
-    );
-  }
+    const status =
+      item.availabilityStatus.toLowerCase();
 
-  function sortInventory() {
-    inventory.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  function getAvailabilityStatus(item) {
-    const condition = item.condition.toLowerCase();
-
-    if (item.quantity <= 0 || condition.includes("unavailable")) {
+    if (
+      item.quantityAvailable <= 0 ||
+      condition.includes("unavailable") ||
+      status.includes("unavailable")
+    ) {
       return {
         label: "Unavailable",
         className: "unavailable",
@@ -451,7 +519,7 @@ document.addEventListener("DOMContentLoaded", () => {
       };
     }
 
-    if (item.quantity <= 3) {
+    if (item.quantityAvailable <= 3) {
       return {
         label: "Low Stock",
         className: "low-stock",
@@ -464,439 +532,426 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function normalizeStatus(status, dueDateISO) {
-    if (
-      status === "approved" &&
-      dueDateISO &&
-      new Date(dueDateISO) < new Date()
-    ) {
-      return "overdue";
-    }
+  function findInventoryItem(identifier) {
+    const value = String(identifier || "")
+      .toLowerCase();
 
-    return status || "pending";
-  }
-
-  function statusBadge(status, dueDateISO) {
-    const normalized = normalizeStatus(status, dueDateISO);
-    const label =
-      normalized.charAt(0).toUpperCase() +
-      normalized.slice(1);
-
-    return `<span class="badge ${escapeHTML(normalized)}">${escapeHTML(label)}</span>`;
-  }
-
-  function getExtraDescription(extra) {
-    const values = [];
-
-    if (extra?.cableType) {
-      values.push(`Type: ${extra.cableType}`);
-    }
-
-    if (extra?.cableLength) {
-      values.push(`Length: ${extra.cableLength}`);
-    }
-
-    if (extra?.chargerType) {
-      values.push(`Type: ${extra.chargerType}`);
-    }
-
-    return values.length
-      ? ` (${values.join(" | ")})`
-      : "";
-  }
-
-  function renderItemList(items) {
-    return `
-      <ul class="item-list">
-        ${items
-          .map(
-            (item) =>
-              `<li><strong>${escapeHTML(item.quantity)}× ${escapeHTML(item.itemName)}</strong> — ${escapeHTML(formatDays(item.checkoutDays))}${escapeHTML(getExtraDescription(item.extra))}</li>`
-          )
-          .join("")}
-      </ul>
-    `;
-  }
-
-  function getMaximumCheckoutDays(items) {
-    return items.reduce(
-      (largest, item) =>
-        Math.max(
-          largest,
-          positiveInteger(item.checkoutDays, 1)
-        ),
-      1
+    return inventory.find(
+      (item) =>
+        item.id.toLowerCase() === value ||
+        item.name.toLowerCase() === value
     );
-  }
-
-  function getDueDate(items) {
-    const date = new Date();
-    date.setDate(
-      date.getDate() +
-        getMaximumCheckoutDays(items)
-    );
-    return date.toISOString();
-  }
-
-  function getCartQuantityForItem(itemId, excludedKey = "") {
-    return cart.reduce((total, entry) => {
-      if (
-        entry.itemId === itemId &&
-        entry.key !== excludedKey
-      ) {
-        return total + entry.quantity;
-      }
-
-      return total;
-    }, 0);
-  }
-
-  function createCartKey(itemId, extra) {
-    return [
-      itemId,
-      extra.cableType || "",
-      extra.cableLength || "",
-      extra.chargerType || "",
-    ].join("|");
-  }
-
-  function updateCartCount() {
-    const count = cart.reduce(
-      (total, item) => total + item.quantity,
-      0
-    );
-
-    cartCountSpan.textContent = count;
-    requestTotal.textContent = formatQuantity(count);
-    submitRentalRequestBtn.disabled = count === 0;
-    clearCartBtn.disabled = count === 0;
   }
 
   function renderInventory() {
-    inventoryGrid.innerHTML = "";
-    sortInventory();
+    elements.inventoryGrid.innerHTML = "";
+
+    inventory.sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+
+    if (inventory.length === 0) {
+      elements.inventoryGrid.innerHTML = `
+        <div class="empty-state">
+          No inventory data was supplied by the
+          backend.
+        </div>
+      `;
+
+      return;
+    }
 
     inventory.forEach((item) => {
-      const status = getAvailabilityStatus(item);
-      const card = document.createElement("article");
+      const status = inventoryStatus(item);
+
+      const card =
+        document.createElement("article");
 
       card.className = "equipment-card";
 
       card.innerHTML = `
         <div class="card-top">
           <div>
-            <h3 class="item-title">${escapeHTML(item.name)}</h3>
-            <p class="item-category">${escapeHTML(item.category)}</p>
+            <h3 class="item-title">
+              ${escapeHTML(item.name)}
+            </h3>
+
+            <p class="item-category">
+              ${escapeHTML(item.category)}
+            </p>
           </div>
-          <span class="badge ${escapeHTML(status.className)}">${escapeHTML(status.label)}</span>
+
+          <span class="badge ${escapeHTML(status.className)}">
+            ${escapeHTML(status.label)}
+          </span>
         </div>
 
-        <p class="record-meta item-description">${escapeHTML(item.description)}</p>
+        <p class="record-meta item-description">
+          ${escapeHTML(item.description)}
+        </p>
 
         <div class="detail-list">
-          <div><span>Available:</span> ${escapeHTML(item.quantity)}</div>
-          <div><span>Condition:</span> ${escapeHTML(item.condition)}</div>
-          <div><span>Default Checkout:</span> ${escapeHTML(formatDays(item.checkoutDays))}</div>
+          <div>
+            <span>Available:</span>
+            ${escapeHTML(item.quantityAvailable)}
+          </div>
+
+          <div>
+            <span>Condition:</span>
+            ${escapeHTML(item.condition)}
+          </div>
+
+          <div>
+            <span>Default Checkout:</span>
+            ${escapeHTML(
+              formatDays(item.checkoutDays)
+            )}
+          </div>
         </div>
       `;
 
       if (currentUser?.role !== "admin") {
-        const optionStack = document.createElement("div");
-        optionStack.className = "option-stack";
+        const options =
+          document.createElement("div");
 
-        const quantityLabel = document.createElement("label");
-        quantityLabel.textContent = "Quantity requested";
+        options.className = "option-stack";
 
-        const quantityInput = document.createElement("input");
-        quantityInput.type = "number";
-        quantityInput.min = "1";
-        quantityInput.max = String(Math.max(1, item.quantity));
-        quantityInput.value = "1";
-        quantityInput.disabled = item.quantity <= 0;
+        options.innerHTML = `
+          <label>
+            Quantity requested
 
-        quantityLabel.appendChild(quantityInput);
-        optionStack.appendChild(quantityLabel);
+            <input
+              class="request-quantity"
+              type="number"
+              min="1"
+              max="${item.quantityAvailable}"
+              value="1"
+              ${
+                item.quantityAvailable <= 0
+                  ? "disabled"
+                  : ""
+              }
+            >
+          </label>
 
-        const daysLabel = document.createElement("label");
-        daysLabel.textContent = "Requested checkout days";
+          <label>
+            Requested checkout days
 
-        const daysInput = document.createElement("input");
-        daysInput.type = "number";
-        daysInput.min = "1";
-        daysInput.max = "60";
-        daysInput.value = String(item.checkoutDays);
-        daysInput.disabled = item.quantity <= 0;
+            <input
+              class="request-days"
+              type="number"
+              min="1"
+              max="60"
+              value="${item.checkoutDays}"
+              ${
+                item.quantityAvailable <= 0
+                  ? "disabled"
+                  : ""
+              }
+            >
+          </label>
+        `;
 
-        daysLabel.appendChild(daysInput);
-        optionStack.appendChild(daysLabel);
+        card.appendChild(options);
 
-        let cableTypeSelect = null;
-        let cableLengthSelect = null;
-        let chargerTypeSelect = null;
+        const actions =
+          document.createElement("div");
 
-        if (item.cableTypes.length > 0) {
-          const typeLabel = document.createElement("label");
-          typeLabel.textContent = "Cable type";
-
-          cableTypeSelect = document.createElement("select");
-
-          item.cableTypes.forEach((value) => {
-            cableTypeSelect.add(new Option(value, value));
-          });
-
-          typeLabel.appendChild(cableTypeSelect);
-          optionStack.appendChild(typeLabel);
-
-          const lengthLabel = document.createElement("label");
-          lengthLabel.textContent = "Cable length";
-
-          cableLengthSelect = document.createElement("select");
-
-          const lengths =
-            item.cableLengths.length > 0
-              ? item.cableLengths
-              : ["6ft"];
-
-          lengths.forEach((value) => {
-            cableLengthSelect.add(new Option(value, value));
-          });
-
-          lengthLabel.appendChild(cableLengthSelect);
-          optionStack.appendChild(lengthLabel);
-        }
-
-        if (item.chargerTypes.length > 0) {
-          const chargerLabel = document.createElement("label");
-          chargerLabel.textContent = "Charger type";
-
-          chargerTypeSelect = document.createElement("select");
-
-          item.chargerTypes.forEach((value) => {
-            chargerTypeSelect.add(new Option(value, value));
-          });
-
-          chargerLabel.appendChild(chargerTypeSelect);
-          optionStack.appendChild(chargerLabel);
-        }
-
-        card.appendChild(optionStack);
-
-        const actions = document.createElement("div");
         actions.className = "card-actions";
 
-        const addButton = document.createElement("button");
+        const addButton =
+          document.createElement("button");
+
         addButton.type = "button";
-        addButton.className = "primary-btn request-card-btn";
-        addButton.textContent = "Add to Request";
+
+        addButton.className =
+          "primary-btn request-card-btn";
+
+        addButton.textContent =
+          "Add to Request";
+
         addButton.disabled =
-          item.quantity <= 0 ||
+          item.quantityAvailable <= 0 ||
           status.className === "damaged";
 
-        addButton.addEventListener("click", () => {
-          const quantity = toInteger(
-            quantityInput.value,
-            0
-          );
-          const checkoutDays = toInteger(
-            daysInput.value,
-            0
-          );
-
-          if (
-            quantity < 1 ||
-            quantity > item.quantity
-          ) {
-            showNotification(
-              `Enter a quantity between 1 and ${item.quantity} for ${item.name}.`
+        addButton.addEventListener(
+          "click",
+          () => {
+            const quantity = toInteger(
+              options.querySelector(
+                ".request-quantity"
+              ).value,
+              0
             );
-            return;
-          }
 
-          if (
-            checkoutDays < 1 ||
-            checkoutDays > 60
-          ) {
-            showNotification(
-              "Checkout days must be between 1 and 60."
+            const checkoutDays = toInteger(
+              options.querySelector(
+                ".request-days"
+              ).value,
+              0
             );
-            return;
-          }
 
-          const extra = {
-            cableType: cableTypeSelect?.value || "",
-            cableLength: cableLengthSelect?.value || "",
-            chargerType: chargerTypeSelect?.value || "",
-          };
-
-          const key = createCartKey(item.id, extra);
-          const existing = cart.find(
-            (entry) => entry.key === key
-          );
-          const alreadyRequested =
-            getCartQuantityForItem(item.id);
-
-          if (
-            alreadyRequested + quantity >
-            item.quantity
-          ) {
-            showNotification(
-              `Only ${item.quantity} ${item.name} items are available across this request.`
+            const existing = cart.find(
+              (entry) =>
+                entry.itemId === item.id
             );
-            return;
+
+            const alreadyRequested =
+              existing?.quantity || 0;
+
+            if (
+              quantity < 1 ||
+              alreadyRequested + quantity >
+                item.quantityAvailable
+            ) {
+              showNotification(
+                `The total requested quantity for ${item.name} cannot exceed ${item.quantityAvailable}.`
+              );
+
+              return;
+            }
+
+            if (
+              checkoutDays < 1 ||
+              checkoutDays > 60
+            ) {
+              showNotification(
+                "Checkout days must be between 1 and 60."
+              );
+
+              return;
+            }
+
+            if (existing) {
+              existing.quantity += quantity;
+
+              existing.checkoutDays =
+                checkoutDays;
+            } else {
+              cart.push({
+                itemId: item.id,
+                itemName: item.name,
+                quantity,
+                checkoutDays,
+              });
+            }
+
+            updateCartCount();
+
+            showNotification(
+              `${item.name} was added to the request list.`
+            );
           }
-
-          if (existing) {
-            existing.quantity += quantity;
-            existing.checkoutDays = checkoutDays;
-          } else {
-            cart.push({
-              key,
-              itemId: item.id,
-              itemName: item.name,
-              quantity,
-              checkoutDays,
-              extra,
-            });
-          }
-
-          updateCartCount();
-
-          showNotification(
-            `${quantity} ${item.name}${quantity === 1 ? "" : " items"} added to the request list.`
-          );
-        });
+        );
 
         actions.appendChild(addButton);
         card.appendChild(actions);
       }
 
-      inventoryGrid.appendChild(card);
+      elements.inventoryGrid.appendChild(
+        card
+      );
     });
   }
 
+  function updateCartCount() {
+    const count = cart.reduce(
+      (total, item) =>
+        total + item.quantity,
+      0
+    );
+
+    elements.cartCount.textContent =
+      count;
+
+    elements.requestTotal.textContent =
+      `${count} ${
+        count === 1
+          ? "item"
+          : "items"
+      }`;
+
+    elements.submitRequest.disabled =
+      count === 0;
+
+    elements.clearCart.disabled =
+      count === 0;
+  }
+
   function renderCart() {
-    cartItemsDiv.innerHTML = "";
+    elements.cartItems.innerHTML = "";
 
     if (cart.length === 0) {
-      cartItemsDiv.innerHTML =
-        '<div class="empty-state">Your request list is empty.</div>';
+      elements.cartItems.innerHTML = `
+        <div class="empty-state">
+          Your request list is empty.
+        </div>
+      `;
 
       updateCartCount();
+
       return;
     }
 
     cart.forEach((entry) => {
       const inventoryItem =
         findInventoryItem(entry.itemId);
+
       const card =
         document.createElement("div");
 
       card.className =
         "record-card request-line";
 
-      const configuration =
-        getExtraDescription(entry.extra)
-          .replace(/^ \(|\)$/g, "") ||
-        "Standard configuration";
-
       card.innerHTML = `
         <div class="record-header">
           <div>
-            <p class="record-title">${escapeHTML(entry.itemName)}</p>
-            <p class="record-meta">${escapeHTML(configuration)}</p>
+            <p class="record-title">
+              ${escapeHTML(entry.itemName)}
+            </p>
+
+            <p class="record-meta">
+              Available:
+              ${escapeHTML(
+                inventoryItem
+                  ?.quantityAvailable ?? 0
+              )}
+            </p>
           </div>
-          <button class="remove-btn" type="button">Remove</button>
+
+          <button
+            class="remove-btn"
+            type="button"
+          >
+            Remove
+          </button>
         </div>
 
         <div class="request-line-fields">
           <label>
             Quantity
-            <input class="cart-quantity-input" type="number" min="1" max="${escapeHTML(inventoryItem?.quantity ?? entry.quantity)}" value="${escapeHTML(entry.quantity)}">
+
+            <input
+              class="cart-quantity"
+              type="number"
+              min="1"
+              max="${escapeHTML(
+                inventoryItem
+                  ?.quantityAvailable ??
+                  entry.quantity
+              )}"
+              value="${escapeHTML(
+                entry.quantity
+              )}"
+            >
           </label>
 
           <label>
             Checkout Days
-            <input class="cart-days-input" type="number" min="1" max="60" value="${escapeHTML(entry.checkoutDays)}">
+
+            <input
+              class="cart-days"
+              type="number"
+              min="1"
+              max="60"
+              value="${escapeHTML(
+                entry.checkoutDays
+              )}"
+            >
           </label>
         </div>
       `;
 
-      const quantityInput =
-        card.querySelector(".cart-quantity-input");
-      const daysInput =
-        card.querySelector(".cart-days-input");
-      const removeButton =
-        card.querySelector(".remove-btn");
+      card
+        .querySelector(".cart-quantity")
+        .addEventListener(
+          "change",
+          (event) => {
+            const value = toInteger(
+              event.target.value,
+              0
+            );
 
-      quantityInput.addEventListener("change", () => {
-        const value = toInteger(
-          quantityInput.value,
-          0
-        );
-        const available =
-          inventoryItem?.quantity ??
-          entry.quantity;
-        const otherQuantity =
-          getCartQuantityForItem(
-            entry.itemId,
-            entry.key
-          );
+            const maximum =
+              inventoryItem
+                ?.quantityAvailable ??
+              entry.quantity;
 
-        if (
-          value < 1 ||
-          value + otherQuantity > available
-        ) {
-          quantityInput.value =
-            String(entry.quantity);
+            if (
+              value < 1 ||
+              value > maximum
+            ) {
+              event.target.value =
+                entry.quantity;
 
-          showNotification(
-            `The total requested quantity for ${entry.itemName} cannot exceed ${available}.`
-          );
-          return;
-        }
+              showNotification(
+                `Quantity must be between 1 and ${maximum}.`
+              );
 
-        entry.quantity = value;
-        updateCartCount();
-      });
+              return;
+            }
 
-      daysInput.addEventListener("change", () => {
-        const value = toInteger(
-          daysInput.value,
-          0
+            entry.quantity = value;
+
+            updateCartCount();
+          }
         );
 
-        if (
-          value < 1 ||
-          value > 60
-        ) {
-          daysInput.value =
-            String(entry.checkoutDays);
+      card
+        .querySelector(".cart-days")
+        .addEventListener(
+          "change",
+          (event) => {
+            const value = toInteger(
+              event.target.value,
+              0
+            );
 
-          showNotification(
-            "Checkout days must be between 1 and 60."
-          );
-          return;
-        }
+            if (
+              value < 1 ||
+              value > 60
+            ) {
+              event.target.value =
+                entry.checkoutDays;
 
-        entry.checkoutDays = value;
-      });
+              showNotification(
+                "Checkout days must be between 1 and 60."
+              );
 
-      removeButton.addEventListener("click", () => {
-        cart = cart.filter(
-          (item) => item.key !== entry.key
+              return;
+            }
+
+            entry.checkoutDays = value;
+          }
         );
 
-        renderCart();
-        updateCartCount();
-      });
+      card
+        .querySelector(".remove-btn")
+        .addEventListener(
+          "click",
+          () => {
+            cart = cart.filter(
+              (item) =>
+                item.itemId !==
+                entry.itemId
+            );
 
-      cartItemsDiv.appendChild(card);
+            renderCart();
+          }
+        );
+
+      elements.cartItems.appendChild(
+        card
+      );
     });
 
     updateCartCount();
   }
 
-  function appendHiddenField(name, value) {
+  function appendHiddenField(
+    name,
+    value
+  ) {
     const input =
       document.createElement("input");
 
@@ -904,159 +959,110 @@ document.addEventListener("DOMContentLoaded", () => {
     input.name = name;
     input.value = String(value ?? "");
 
-    requestHiddenFields.appendChild(input);
+    elements.requestHiddenFields.appendChild(
+      input
+    );
   }
 
   function prepareRequestForm() {
-    requestHiddenFields.innerHTML = "";
+    elements.requestHiddenFields.innerHTML =
+      "";
 
     const items = cart.map((entry) => ({
       item_id: entry.itemId,
       item_name: entry.itemName,
       quantity_requested: entry.quantity,
       checkout_days: entry.checkoutDays,
-      cable_type: entry.extra.cableType || "",
-      cable_length: entry.extra.cableLength || "",
-      charger_type: entry.extra.chargerType || "",
     }));
 
     appendHiddenField(
       "request_items",
       JSON.stringify(items)
     );
-
-    appendHiddenField(
-      "request_date",
-      new Date().toISOString()
-    );
-
-    items.forEach((item) => {
-      appendHiddenField(
-        "item_id",
-        item.item_id
-      );
-      appendHiddenField(
-        "item_name",
-        item.item_name
-      );
-      appendHiddenField(
-        "quantity_requested",
-        item.quantity_requested
-      );
-      appendHiddenField(
-        "checkout_days",
-        item.checkout_days
-      );
-      appendHiddenField(
-        "cable_type",
-        item.cable_type
-      );
-      appendHiddenField(
-        "cable_length",
-        item.cable_length
-      );
-      appendHiddenField(
-        "charger_type",
-        item.charger_type
-      );
-    });
   }
 
-  async function postForm(url, formData) {
+  function extractFlashMessage(html) {
+    if (!html) {
+      return "";
+    }
+
+    const parsed =
+      new DOMParser().parseFromString(
+        html,
+        "text/html"
+      );
+
+    return (
+      parsed
+        .querySelector(".flash-message")
+        ?.textContent?.trim() || ""
+    );
+  }
+
+  async function postForm(
+    url,
+    formData
+  ) {
     const response = await fetch(url, {
       method: "POST",
       body: formData,
       credentials: "same-origin",
+
       headers: {
-        "X-Requested-With": "XMLHttpRequest",
+        "X-Requested-With":
+          "XMLHttpRequest",
       },
     });
 
-    let data = null;
-    let text = "";
-
     const contentType =
-      response.headers.get("content-type") || "";
+      response.headers.get(
+        "content-type"
+      ) || "";
 
-    if (
-      contentType.includes("application/json")
-    ) {
-      data = await response
-        .json()
-        .catch(() => null);
-    } else {
-      text = await response
-        .text()
-        .catch(() => "");
-    }
+    const data =
+      contentType.includes(
+        "application/json"
+      )
+        ? await response
+            .json()
+            .catch(() => null)
+        : null;
 
-    if (
-      response.status === 404 ||
-      response.status === 405
-    ) {
-      return {
-        connected: false,
-        response,
-        data,
-        text,
-      };
-    }
+    const text =
+      data === null
+        ? await response
+            .text()
+            .catch(() => "")
+        : "";
 
     if (!response.ok) {
-      const message =
-        data?.message ||
+      throw new Error(
         data?.error ||
-        "The server could not complete this action.";
-
-      const error = new Error(message);
-      error.status = response.status;
-      throw error;
+          data?.message ||
+          extractFlashMessage(text) ||
+          "The server could not complete this action."
+      );
     }
 
     return {
-      connected: true,
       response,
       data,
       text,
     };
   }
 
-  function validateCartAvailability() {
-    for (const entry of cart) {
-      const item =
-        findInventoryItem(entry.itemId);
-
-      if (!item) {
-        return `${entry.itemName} is no longer in inventory.`;
-      }
-
-      if (
-        entry.quantity < 1 ||
-        entry.quantity > item.quantity
-      ) {
-        return `Only ${item.quantity} ${entry.itemName} items are currently available.`;
-      }
-
-      if (
-        entry.checkoutDays < 1 ||
-        entry.checkoutDays > 60
-      ) {
-        return `The checkout length for ${entry.itemName} must be between 1 and 60 days.`;
-      }
-    }
-
-    return "";
-  }
-
-  async function submitRentalRequest(event) {
+  async function submitRequest(event) {
     event.preventDefault();
 
     if (!currentUser) {
-      hideModal(cartModal);
+      hideModal(elements.cartModal);
+
       setLoginError(
         "Log in before submitting an equipment request."
       );
-      showModal(loginModal);
+
+      showModal(elements.loginModal);
+
       return;
     }
 
@@ -1064,6 +1070,7 @@ document.addEventListener("DOMContentLoaded", () => {
       showNotification(
         "Admin accounts cannot submit borrower requests."
       );
+
       return;
     }
 
@@ -1071,96 +1078,107 @@ document.addEventListener("DOMContentLoaded", () => {
       showNotification(
         "Add at least one item before submitting a request."
       );
+
       return;
     }
 
-    const validationMessage =
-      validateCartAvailability();
+    for (const entry of cart) {
+      const item = findInventoryItem(
+        entry.itemId
+      );
 
-    if (validationMessage) {
-      showNotification(validationMessage);
-      return;
+      if (
+        !item ||
+        entry.quantity >
+          item.quantityAvailable
+      ) {
+        showNotification(
+          `${entry.itemName} is no longer available in that quantity.`
+        );
+
+        return;
+      }
     }
 
     prepareRequestForm();
 
-    submitRentalRequestBtn.disabled = true;
-    submitRentalRequestBtn.textContent =
+    elements.submitRequest.disabled =
+      true;
+
+    elements.submitRequest.textContent =
       "Submitting...";
 
     try {
       const result = await postForm(
         routes.submitRequestUrl ||
-          requestForm.action ||
-          "/submit-request",
-        new FormData(requestForm)
-      );
+          elements.requestForm.action,
 
-      const requestId = String(
-        result.data?.request_id ??
-          result.data?.id ??
-          Date.now()
+        new FormData(
+          elements.requestForm
+        )
       );
-
-      const request = {
-        id: requestId,
-        username: currentUser.username,
-        status: "pending",
-        requestDateISO:
-          new Date().toISOString(),
-        dueDateISO: null,
-        returnedDateISO: null,
-        items: cart.map((entry) =>
-          normalizeRequestItem(entry)
-        ),
-        belongsToCurrentUser: true,
-      };
 
       if (
-        !rentalRequests.some(
-          (entry) => entry.id === request.id
-        )
+        result.response.redirected &&
+        result.response.url
       ) {
-        rentalRequests.push(request);
+        window.location.assign(
+          result.response.url
+        );
+
+        return;
       }
 
       cart = [];
 
-      saveState();
-      renderCart();
-      renderRequests();
-      renderUserPendingRequests();
-      hideModal(cartModal);
-
-      showNotification(
-        result.connected
-          ? `Request #${requestId} was submitted for admin approval.`
-          : `Request #${requestId} was saved in the frontend demo. The Flask /submit-request route is not connected yet.`
-      );
+      window.location.reload();
     } catch (error) {
-      if (
-        error.status === 401 ||
-        error.status === 403
-      ) {
-        hideModal(cartModal);
-
-        setLoginError(
-          "Your session is not authorized to submit this request. Log in again."
-        );
-
-        showModal(loginModal);
-      } else {
-        showNotification(error.message);
-      }
+      showNotification(error.message);
     } finally {
-      submitRentalRequestBtn.textContent =
+      elements.submitRequest.textContent =
         "Submit Request";
 
       updateCartCount();
     }
   }
 
-  function requestBelongsToCurrentUser(request) {
+  function renderRequestItems(items) {
+    if (!items.length) {
+      return `
+        <p class="record-meta">
+          No request-item data was supplied.
+        </p>
+      `;
+    }
+
+    return `
+      <ul class="item-list">
+        ${items
+          .map(
+            (item) => `
+              <li>
+                <strong>
+                  ${escapeHTML(item.quantity)}×
+                  ${escapeHTML(item.itemName)}
+                </strong>
+
+                —
+                ${escapeHTML(
+                  formatDays(
+                    item.checkoutDays
+                  )
+                )}
+              </li>
+            `
+          )
+          .join("")}
+      </ul>
+    `;
+  }
+
+  function belongsToCurrentUser(
+    request
+  ) {
     if (!currentUser) {
       return false;
     }
@@ -1180,508 +1198,504 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderUserPendingRequests() {
     if (
-      !currentUser ||
-      currentUser.role !== "user"
+      currentUser?.role !== "user"
     ) {
-      userRequestsSection.classList.add("hidden");
+      elements.userRequestsSection.classList.add(
+        "hidden"
+      );
+
       return;
     }
 
-    userRequestsSection.classList.remove("hidden");
-    userPendingList.innerHTML = "";
-
-    const entries = rentalRequests.filter(
-      requestBelongsToCurrentUser
+    elements.userRequestsSection.classList.remove(
+      "hidden"
     );
 
-    if (entries.length === 0) {
-      userPendingList.innerHTML =
-        '<div class="empty-state">You have no pending requests.</div>';
+    const requests =
+      pendingRequests.filter(
+        belongsToCurrentUser
+      );
+
+    elements.userPendingList.innerHTML =
+      requests.length
+        ? requests
+            .map(
+              (request) => `
+                <article class="record-card">
+                  <div class="record-header">
+                    <div>
+                      <p class="record-title">
+                        Request #${escapeHTML(
+                          request.id
+                        )}
+                      </p>
+
+                      <p class="record-meta">
+                        Submitted:
+                        ${escapeHTML(
+                          formatDate(
+                            request.requestDate
+                          )
+                        )}
+                      </p>
+                    </div>
+
+                    ${statusBadge("pending")}
+                  </div>
+
+                  ${renderRequestItems(
+                    request.items
+                  )}
+                </article>
+              `
+            )
+            .join("")
+        : `
+            <div class="empty-state">
+              No pending-request data was
+              supplied by the backend.
+            </div>
+          `;
+  }
+
+  function renderAdminRequests() {
+    elements.requestsList.innerHTML = "";
+
+    if (!pendingRequests.length) {
+      elements.requestsList.innerHTML = `
+        <div class="empty-state">
+          No pending-request data was supplied
+          by the backend.
+        </div>
+      `;
+
       return;
     }
 
-    entries
-      .slice()
-      .reverse()
-      .forEach((request) => {
-        const card =
-          document.createElement("article");
+    pendingRequests.forEach((request) => {
+      const form =
+        document.createElement("form");
 
-        card.className = "record-card";
+      form.className = "record-card";
+      form.method = "POST";
 
-        card.innerHTML = `
-          <div class="record-header">
-            <div>
-              <p class="record-title">Request #${escapeHTML(request.id)}</p>
-              <p class="record-meta">Submitted: ${escapeHTML(formatDate(request.requestDateISO))}</p>
-            </div>
-            ${statusBadge("pending")}
+      form.action =
+        routes.requestDecisionUrl ||
+        "/request-decision";
+
+      form.innerHTML = `
+        <input
+          type="hidden"
+          name="request_id"
+          value="${escapeHTML(request.id)}"
+        >
+
+        <div class="record-header">
+          <div>
+            <p class="record-title">
+              Request #${escapeHTML(
+                request.id
+              )}
+
+              ${
+                request.username
+                  ? `— ${escapeHTML(
+                      request.username
+                    )}`
+                  : ""
+              }
+            </p>
+
+            <p class="record-meta">
+              Submitted:
+              ${escapeHTML(
+                formatDate(
+                  request.requestDate
+                )
+              )}
+            </p>
           </div>
 
-          ${renderItemList(request.items)}
-        `;
+          ${statusBadge("pending")}
+        </div>
 
-        userPendingList.appendChild(card);
-      });
-  }
+        ${renderRequestItems(
+          request.items
+        )}
 
-  function renderRequests() {
-    requestsListDiv.innerHTML = "";
+        <div class="record-actions">
+          <button
+            class="approve-btn"
+            type="submit"
+            name="decision"
+            value="approve"
+          >
+            Approve
+          </button>
 
-    if (rentalRequests.length === 0) {
-      requestsListDiv.innerHTML =
-        '<div class="empty-state">There are no pending requests.</div>';
-      return;
-    }
+          <button
+            class="deny-btn"
+            type="submit"
+            name="decision"
+            value="deny"
+          >
+            Deny
+          </button>
+        </div>
+      `;
 
-    rentalRequests
-      .slice()
-      .reverse()
-      .forEach((request) => {
-        const form =
-          document.createElement("form");
+      form.addEventListener(
+        "submit",
+        async (event) => {
+          event.preventDefault();
 
-        form.className =
-          "record-card decision-form";
-        form.method = "POST";
-        form.action =
-          routes.requestDecisionUrl ||
-          "/request-decision";
+          const decision =
+            event.submitter?.value;
 
-        form.innerHTML = `
-          <input type="hidden" name="request_id" value="${escapeHTML(request.id)}">
+          if (!decision) {
+            return;
+          }
 
-          <div class="record-header">
-            <div>
-              <p class="record-title">Request #${escapeHTML(request.id)}${request.username ? ` — ${escapeHTML(request.username)}` : ""}</p>
-              <p class="record-meta">Submitted: ${escapeHTML(formatDate(request.requestDateISO))}</p>
-            </div>
-            ${statusBadge("pending")}
-          </div>
+          const formData =
+            new FormData(form);
 
-          ${renderItemList(request.items)}
-
-          <div class="record-actions">
-            <button class="approve-btn" type="submit" name="decision" value="approve">Approve</button>
-            <button class="deny-btn" type="submit" name="decision" value="deny">Deny</button>
-          </div>
-        `;
-
-        form.addEventListener(
-          "submit",
-          handleRequestDecision
-        );
-
-        requestsListDiv.appendChild(form);
-      });
-  }
-
-  function canApproveRequest(request) {
-    for (const requestItem of request.items) {
-      const inventoryItem =
-        findInventoryItem(requestItem.itemId) ||
-        findInventoryItem(requestItem.itemName);
-
-      if (
-        !inventoryItem ||
-        inventoryItem.quantity <
-          requestItem.quantity
-      ) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  function moveRequestToHistory(
-    request,
-    decision
-  ) {
-    rentalRequests = rentalRequests.filter(
-      (entry) => entry.id !== request.id
-    );
-
-    request.status =
-      decision === "approve"
-        ? "approved"
-        : "denied";
-
-    request.dueDateISO =
-      decision === "approve"
-        ? getDueDate(request.items)
-        : null;
-
-    if (decision === "approve") {
-      request.items.forEach((requestItem) => {
-        const inventoryItem =
-          findInventoryItem(
-            requestItem.itemId
-          ) ||
-          findInventoryItem(
-            requestItem.itemName
+          formData.set(
+            "decision",
+            decision
           );
 
-        if (inventoryItem) {
-          inventoryItem.quantity =
-            Math.max(
-              0,
-              inventoryItem.quantity -
-                requestItem.quantity
-            );
-        }
-      });
-    }
+          form
+            .querySelectorAll("button")
+            .forEach((button) => {
+              button.disabled = true;
+            });
 
-    const existingIndex =
-      rentalHistory.findIndex(
-        (entry) => entry.id === request.id
+          try {
+            await postForm(
+              form.action,
+              formData
+            );
+
+            window.location.reload();
+          } catch (error) {
+            showNotification(
+              error.message
+            );
+
+            form
+              .querySelectorAll("button")
+              .forEach((button) => {
+                button.disabled = false;
+              });
+          }
+        }
       );
 
-    if (existingIndex >= 0) {
-      rentalHistory[existingIndex] =
-        request;
-    } else {
-      rentalHistory.push(request);
-    }
+      elements.requestsList.appendChild(
+        form
+      );
+    });
   }
 
-  async function handleRequestDecision(event) {
-    event.preventDefault();
+  function renderHistoryCard(
+    entry,
+    adminView
+  ) {
+    const card =
+      document.createElement("article");
 
-    const form = event.currentTarget;
-    const submitter = event.submitter;
-    const requestId =
-      form.elements.request_id.value;
-    const decision = submitter?.value;
+    card.className = "record-card";
 
-    const request = rentalRequests.find(
-      (entry) => entry.id === requestId
-    );
+    card.innerHTML = `
+      <div class="record-header">
+        <div>
+          <p class="record-title">
+            Request #${escapeHTML(entry.id)}
+
+            ${
+              adminView && entry.username
+                ? `— ${escapeHTML(
+                    entry.username
+                  )}`
+                : ""
+            }
+          </p>
+
+          <p class="record-meta">
+            Requested:
+            ${escapeHTML(
+              formatDate(
+                entry.requestDate
+              )
+            )}
+          </p>
+
+          <p class="record-meta">
+            Due:
+            ${escapeHTML(
+              formatDate(entry.dueDate)
+            )}
+          </p>
+
+          ${
+            entry.returnedDate
+              ? `
+                <p class="record-meta">
+                  Returned:
+                  ${escapeHTML(
+                    formatDate(
+                      entry.returnedDate
+                    )
+                  )}
+                </p>
+              `
+              : ""
+          }
+        </div>
+
+        ${statusBadge(
+          entry.status,
+          entry.dueDate
+        )}
+      </div>
+
+      ${renderRequestItems(entry.items)}
+    `;
+
+    const normalizedStatus = String(
+      entry.status || ""
+    ).toLowerCase();
 
     if (
-      !request ||
-      !["approve", "deny"].includes(decision)
+      adminView &&
+      [
+        "approved",
+        "overdue",
+      ].includes(normalizedStatus)
     ) {
-      showNotification(
-        "The selected request could not be found."
+      const form =
+        document.createElement("form");
+
+      form.className = "record-actions";
+      form.method = "POST";
+
+      form.action =
+        routes.processReturnUrl ||
+        "/process-return";
+
+      form.innerHTML = `
+        <input
+          type="hidden"
+          name="request_id"
+          value="${escapeHTML(entry.id)}"
+        >
+
+        <button
+          class="return-btn"
+          type="submit"
+        >
+          Process Return
+        </button>
+      `;
+
+      form.addEventListener(
+        "submit",
+        async (event) => {
+          event.preventDefault();
+
+          const button =
+            form.querySelector("button");
+
+          button.disabled = true;
+
+          try {
+            await postForm(
+              form.action,
+              new FormData(form)
+            );
+
+            window.location.reload();
+          } catch (error) {
+            showNotification(
+              error.message
+            );
+
+            button.disabled = false;
+          }
+        }
       );
-      return;
+
+      card.appendChild(form);
     }
 
-    if (
-      decision === "approve" &&
-      !canApproveRequest(request)
-    ) {
-      showNotification(
-        "This request cannot be approved because one or more items do not have enough available quantity."
-      );
-      return;
-    }
-
-    const formData = new FormData();
-
-    formData.append(
-      "request_id",
-      requestId
-    );
-    formData.append(
-      "decision",
-      decision
-    );
-
-    form
-      .querySelectorAll("button")
-      .forEach((button) => {
-        button.disabled = true;
-      });
-
-    try {
-      const result = await postForm(
-        form.action,
-        formData
-      );
-
-      moveRequestToHistory(
-        request,
-        decision
-      );
-
-      saveState();
-      renderAll();
-
-      showNotification(
-        result.connected
-          ? `Request #${requestId} was ${decision === "approve" ? "approved" : "denied"}.`
-          : `Request #${requestId} was ${decision === "approve" ? "approved" : "denied"} in the frontend demo. The Flask decision route is not connected yet.`
-      );
-    } catch (error) {
-      showNotification(error.message);
-
-      form
-        .querySelectorAll("button")
-        .forEach((button) => {
-          button.disabled = false;
-        });
-    }
+    return card;
   }
 
   function renderRentalHistory() {
-    rentalHistoryListDiv.innerHTML = "";
+    elements.rentalHistoryList.innerHTML =
+      "";
 
-    if (rentalHistory.length === 0) {
-      rentalHistoryListDiv.innerHTML =
-        '<div class="empty-state">No rental history is available.</div>';
+    if (!rentalHistory.length) {
+      elements.rentalHistoryList.innerHTML = `
+        <div class="empty-state">
+          No rental-history data was supplied
+          by the backend.
+        </div>
+      `;
+
       return;
     }
 
-    rentalHistory
-      .slice()
-      .reverse()
-      .forEach((entry) => {
-        const normalizedStatus =
-          normalizeStatus(
-            entry.status,
-            entry.dueDateISO
-          );
-
-        const card =
-          document.createElement("article");
-
-        card.className = "record-card";
-
-        card.innerHTML = `
-          <div class="record-header">
-            <div>
-              <p class="record-title">Request #${escapeHTML(entry.id)}${entry.username ? ` — ${escapeHTML(entry.username)}` : ""}</p>
-              <p class="record-meta">Requested: ${escapeHTML(formatDate(entry.requestDateISO))}</p>
-              <p class="record-meta">Due: ${entry.dueDateISO ? escapeHTML(formatDate(entry.dueDateISO)) : "Not assigned"}</p>
-              ${entry.returnedDateISO ? `<p class="record-meta">Returned: ${escapeHTML(formatDate(entry.returnedDateISO))}</p>` : ""}
-            </div>
-            ${statusBadge(entry.status, entry.dueDateISO)}
-          </div>
-
-          ${renderItemList(entry.items)}
-        `;
-
-        if (
-          ["approved", "overdue"].includes(
-            normalizedStatus
-          )
-        ) {
-          const form =
-            document.createElement("form");
-
-          form.className =
-            "record-actions return-form";
-          form.method = "POST";
-          form.action =
-            routes.processReturnUrl ||
-            "/process-return";
-
-          form.innerHTML = `
-            <input type="hidden" name="request_id" value="${escapeHTML(entry.id)}">
-            <button class="return-btn" type="submit">Process Return</button>
-          `;
-
-          form.addEventListener(
-            "submit",
-            handleReturn
-          );
-
-          card.appendChild(form);
-        }
-
-        rentalHistoryListDiv.appendChild(card);
-      });
+    rentalHistory.forEach((entry) => {
+      elements.rentalHistoryList.appendChild(
+        renderHistoryCard(entry, true)
+      );
+    });
   }
 
-  async function handleReturn(event) {
-    event.preventDefault();
-
-    const form = event.currentTarget;
-    const requestId =
-      form.elements.request_id.value;
-
-    const entry = rentalHistory.find(
-      (request) => request.id === requestId
-    );
-
-    if (!entry) {
-      showNotification(
-        "The selected checkout record could not be found."
-      );
-      return;
-    }
-
-    const button =
-      form.querySelector("button");
-
-    button.disabled = true;
-
-    const formData =
-      new FormData(form);
-
-    try {
-      const result = await postForm(
-        form.action,
-        formData
-      );
-
-      entry.items.forEach((requestItem) => {
-        const inventoryItem =
-          findInventoryItem(
-            requestItem.itemId
-          ) ||
-          findInventoryItem(
-            requestItem.itemName
-          );
-
-        if (inventoryItem) {
-          inventoryItem.quantity +=
-            requestItem.quantity;
-        }
-      });
-
-      entry.status = "returned";
-      entry.returnedDateISO =
-        new Date().toISOString();
-
-      saveState();
-      renderAll();
-
-      showNotification(
-        result.connected
-          ? `Request #${requestId} was processed as returned.`
-          : `Request #${requestId} was returned in the frontend demo. The Flask return route is not connected yet.`
-      );
-    } catch (error) {
-      showNotification(error.message);
-      button.disabled = false;
-    }
-  }
-
-  function renderUserRentals() {
+  function renderUserHistory() {
     if (
-      !currentUser ||
-      currentUser.role !== "user"
+      currentUser?.role !== "user"
     ) {
-      userRentalsSection.classList.add("hidden");
+      elements.userRentalsSection.classList.add(
+        "hidden"
+      );
+
       return;
     }
 
-    userRentalsSection.classList.remove("hidden");
-    userRentalsList.innerHTML = "";
-
-    const entries = rentalHistory.filter(
-      requestBelongsToCurrentUser
+    elements.userRentalsSection.classList.remove(
+      "hidden"
     );
 
-    if (entries.length === 0) {
-      userRentalsList.innerHTML =
-        '<div class="empty-state">You have no checkout history yet.</div>';
+    elements.userRentalsList.innerHTML =
+      "";
+
+    const entries =
+      rentalHistory.filter(
+        belongsToCurrentUser
+      );
+
+    if (!entries.length) {
+      elements.userRentalsList.innerHTML = `
+        <div class="empty-state">
+          No rental-history data was supplied
+          by the backend.
+        </div>
+      `;
+
       return;
     }
 
-    entries
-      .slice()
-      .reverse()
-      .forEach((entry) => {
-        const card =
-          document.createElement("article");
-
-        card.className = "record-card";
-
-        card.innerHTML = `
-          <div class="record-header">
-            <div>
-              <p class="record-title">Request #${escapeHTML(entry.id)}</p>
-              <p class="record-meta">Requested: ${escapeHTML(formatDate(entry.requestDateISO))}</p>
-              <p class="record-meta">Due: ${entry.dueDateISO ? escapeHTML(formatDate(entry.dueDateISO)) : "Not assigned"}</p>
-              ${entry.returnedDateISO ? `<p class="record-meta">Returned: ${escapeHTML(formatDate(entry.returnedDateISO))}</p>` : ""}
-            </div>
-            ${statusBadge(entry.status, entry.dueDateISO)}
-          </div>
-
-          ${renderItemList(entry.items)}
-        `;
-
-        userRentalsList.appendChild(card);
-      });
+    entries.forEach((entry) => {
+      elements.userRentalsList.appendChild(
+        renderHistoryCard(entry, false)
+      );
+    });
   }
 
   function syncAuthUI() {
-    currentUser = getBackendUser();
-
     if (!currentUser) {
-      userRoleLabel.textContent =
+      elements.userRoleLabel.textContent =
         "Not logged in";
 
-      loginBtn.classList.remove("hidden");
-      logoutBtn.classList.add("hidden");
-      cartBtn.classList.remove("hidden");
-      adminSection.classList.add("hidden");
-      userRequestsSection.classList.add("hidden");
-      userRentalsSection.classList.add("hidden");
+      elements.loginBtn.classList.remove(
+        "hidden"
+      );
+
+      elements.logoutBtn.classList.add(
+        "hidden"
+      );
+
+      elements.cartBtn.classList.remove(
+        "hidden"
+      );
+
+      elements.adminSection.classList.add(
+        "hidden"
+      );
+
+      elements.userRequestsSection.classList.add(
+        "hidden"
+      );
+
+      elements.userRentalsSection.classList.add(
+        "hidden"
+      );
+
       return;
     }
 
-    userRoleLabel.textContent =
+    elements.userRoleLabel.textContent =
       `Logged in as ${currentUser.username} (${currentUser.role})`;
 
-    loginBtn.classList.add("hidden");
-    logoutBtn.classList.remove("hidden");
+    elements.loginBtn.classList.add(
+      "hidden"
+    );
+
+    elements.logoutBtn.classList.remove(
+      "hidden"
+    );
 
     if (currentUser.role === "admin") {
-      adminSection.classList.remove("hidden");
-      userRequestsSection.classList.add("hidden");
-      userRentalsSection.classList.add("hidden");
-      cartBtn.classList.add("hidden");
-      refreshAdminSelectors();
-    } else {
-      adminSection.classList.add("hidden");
-      userRequestsSection.classList.remove("hidden");
-      userRentalsSection.classList.remove("hidden");
-      cartBtn.classList.remove("hidden");
-    }
-  }
-
-  function extractFlashMessage(html) {
-    if (!html) {
-      return "";
-    }
-
-    const documentCopy =
-      new DOMParser().parseFromString(
-        html,
-        "text/html"
+      elements.adminSection.classList.remove(
+        "hidden"
       );
 
-    return (
-      documentCopy
-        .querySelector(
-          ".flash-message.error, .flash-message"
-        )
-        ?.textContent?.trim() || ""
-    );
+      elements.userRequestsSection.classList.add(
+        "hidden"
+      );
+
+      elements.userRentalsSection.classList.add(
+        "hidden"
+      );
+
+      elements.cartBtn.classList.add(
+        "hidden"
+      );
+
+      refreshInventorySelects();
+    } else {
+      elements.adminSection.classList.add(
+        "hidden"
+      );
+
+      elements.userRequestsSection.classList.remove(
+        "hidden"
+      );
+
+      elements.userRentalsSection.classList.remove(
+        "hidden"
+      );
+
+      elements.cartBtn.classList.remove(
+        "hidden"
+      );
+    }
   }
 
-  async function handleLoginSubmit(event) {
+  async function handleLogin(event) {
     event.preventDefault();
 
     setLoginError("");
 
-    loginSubmitBtn.disabled = true;
-    loginSubmitBtn.textContent =
+    elements.loginSubmit.disabled = true;
+
+    elements.loginSubmit.textContent =
       "Logging In...";
 
     try {
       const response = await fetch(
-        loginForm.action,
+        elements.loginForm.action,
         {
           method: "POST",
-          body: new FormData(loginForm),
+
+          body: new FormData(
+            elements.loginForm
+          ),
+
           credentials: "same-origin",
+
           headers: {
             "X-Requested-With":
               "XMLHttpRequest",
@@ -1689,7 +1703,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       );
 
-      const html = await response.text();
+      const html =
+        await response.text();
 
       if (
         response.ok &&
@@ -1698,22 +1713,12 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.assign(
           response.url || "/"
         );
-        return;
-      }
 
-      const serverMessage =
-        extractFlashMessage(html);
-
-      if (!response.ok) {
-        setLoginError(
-          serverMessage ||
-            "That account was not found or the login information is incorrect."
-        );
         return;
       }
 
       setLoginError(
-        serverMessage ||
+        extractFlashMessage(html) ||
           "The username, password, or selected role is incorrect."
       );
     } catch {
@@ -1721,64 +1726,34 @@ document.addEventListener("DOMContentLoaded", () => {
         "The login request could not reach the server."
       );
     } finally {
-      loginSubmitBtn.disabled = false;
-      loginSubmitBtn.textContent =
+      elements.loginSubmit.disabled =
+        false;
+
+      elements.loginSubmit.textContent =
         "Log In";
     }
   }
 
-  function getLogoutUrl() {
-    const auth =
-      window.BACKEND_AUTH || {};
-
-    if (
-      auth.logoutUrl &&
-      auth.logoutUrl !== "/" &&
-      auth.logoutUrl !== auth.loginUrl
-    ) {
-      return auth.logoutUrl;
-    }
-
-    return routes.logoutUrl || "/logout";
-  }
-
   async function handleLogout() {
-    logoutBtn.disabled = true;
-    logoutBtn.textContent =
+    elements.logoutBtn.disabled = true;
+
+    elements.logoutBtn.textContent =
       "Logging Out...";
 
-    const logoutUrl = getLogoutUrl();
-
     try {
-      let response = await fetch(
-        logoutUrl,
+      const response = await fetch(
+        routes.logoutUrl ||
+          auth.logoutUrl ||
+          "/logout",
         {
           method: "GET",
           credentials: "same-origin",
-          headers: {
-            "X-Requested-With":
-              "XMLHttpRequest",
-          },
         }
       );
 
-      if (response.status === 405) {
-        response = await fetch(
-          logoutUrl,
-          {
-            method: "POST",
-            credentials: "same-origin",
-            headers: {
-              "X-Requested-With":
-                "XMLHttpRequest",
-            },
-          }
-        );
-      }
-
       if (!response.ok) {
         throw new Error(
-          "The Flask /logout route is not available yet."
+          "Logout could not be completed."
         );
       }
 
@@ -1788,511 +1763,356 @@ document.addEventListener("DOMContentLoaded", () => {
           : "/"
       );
     } catch (error) {
-      showNotification(
-        error.message ||
-          "Logout could not be completed."
-      );
+      showNotification(error.message);
 
-      logoutBtn.disabled = false;
-      logoutBtn.textContent = "Logout";
+      elements.logoutBtn.disabled =
+        false;
+
+      elements.logoutBtn.textContent =
+        "Logout";
     }
   }
 
-  function getItemFormData(mode) {
-    const prefix =
-      mode === "add" ? "add" : "update";
-
-    const fields = {
-      name: document
-        .getElementById(`${prefix}-item-name`)
-        .value.trim(),
-      category: document
-        .getElementById(`${prefix}-item-category`)
-        .value.trim(),
-      condition: document.getElementById(
-        `${prefix}-item-condition`
-      ).value,
-      quantity: toInteger(
-        document.getElementById(
-          `${prefix}-item-qty`
-        ).value,
-        -1
-      ),
-      description: document
-        .getElementById(
-          `${prefix}-item-description`
-        )
-        .value.trim(),
-      checkoutDays: toInteger(
-        document.getElementById(
-          `${prefix}-item-checkout-days`
-        ).value,
-        0
-      ),
-    };
-
-    if (
-      !fields.name ||
-      !fields.category ||
-      !fields.description
-    ) {
-      showNotification(
-        "Fill out the item name, category, and description."
-      );
-      return null;
-    }
-
-    if (fields.quantity < 0) {
-      showNotification(
-        "Enter a quantity of 0 or higher."
-      );
-      return null;
-    }
-
-    if (
-      fields.checkoutDays < 1 ||
-      fields.checkoutDays > 60
-    ) {
-      showNotification(
-        "Default checkout days must be between 1 and 60."
-      );
-      return null;
-    }
-
-    return fields;
-  }
-
-  function clearAddItemForm() {
-    addItemNameInput.value = "";
-    addItemCategoryInput.value = "";
-    addItemConditionSelect.value = "Good";
-    addItemQtyInput.value = "";
-    addItemDescriptionInput.value = "";
-    addItemCheckoutDaysInput.value = "";
-  }
-
-  function addItem() {
-    const fields =
-      getItemFormData("add");
-
-    if (!fields) {
-      return;
-    }
-
-    if (findInventoryItem(fields.name)) {
-      showNotification(
-        `${fields.name} already exists. Use Update Item instead.`
-      );
-      return;
-    }
-
-    inventory.push(
-      normalizeInventoryItem({
-        id: `local-${Date.now()}`,
-        ...fields,
-      })
-    );
-
-    sortInventory();
-    clearAddItemForm();
-    saveState();
-    refreshAdminSelectors(fields.name);
-    renderInventory();
-
-    showNotification(
-      `${fields.name} was added to inventory.`
-    );
-  }
-
-  function populateItemSelect(
-    selectElement,
+  function populateSelect(
+    select,
     placeholder
   ) {
-    const selected = selectElement.value;
+    const previousValue =
+      select.value;
 
-    selectElement.innerHTML = "";
-    selectElement.add(
+    select.innerHTML = "";
+
+    select.add(
       new Option(placeholder, "")
     );
 
     inventory.forEach((item) => {
-      selectElement.add(
+      select.add(
         new Option(item.name, item.id)
       );
     });
 
     if (
       inventory.some(
-        (item) => item.id === selected
+        (item) =>
+          item.id === previousValue
       )
     ) {
-      selectElement.value = selected;
+      select.value = previousValue;
     }
   }
 
-  function refreshAdminSelectors(
-    preferredName = ""
-  ) {
-    sortInventory();
-
-    populateItemSelect(
-      updateItemSelect,
+  function refreshInventorySelects() {
+    populateSelect(
+      elements.updateItemSelect,
       "Select an item to edit"
     );
 
-    populateItemSelect(
-      deleteItemNameInput,
+    populateSelect(
+      elements.deleteItemSelect,
       "Select an item to delete"
     );
 
-    populateItemSelect(
-      damageItemNameInput,
+    populateSelect(
+      elements.damageItemSelect,
       "Select an item to damage out"
     );
-
-    const preferred = inventory.find(
-      (item) => item.name === preferredName
-    );
-
-    if (preferred) {
-      updateItemSelect.value = preferred.id;
-    }
 
     populateUpdateForm();
   }
 
-  function setUpdateFieldsDisabled(disabled) {
-    [
-      updateItemNameInput,
-      updateItemCategoryInput,
-      updateItemConditionSelect,
-      updateItemQtyInput,
-      updateItemDescriptionInput,
-      updateItemCheckoutDaysInput,
-      updateItemBtn,
-      resetUpdateItemBtn,
-    ].forEach((element) => {
-      element.disabled = disabled;
-    });
-  }
-
   function populateUpdateForm() {
     const item = findInventoryItem(
-      updateItemSelect.value
+      elements.updateItemSelect.value
     );
 
-    if (!item) {
-      updateItemNameInput.value = "";
-      updateItemCategoryInput.value = "";
-      updateItemConditionSelect.value = "Good";
-      updateItemQtyInput.value = "";
-      updateItemDescriptionInput.value = "";
-      updateItemCheckoutDaysInput.value = "";
+    const fieldIds = [
+      "update-item-name",
+      "update-item-category",
+      "update-item-condition",
+      "update-item-qty",
+      "update-item-description",
+      "update-item-checkout-days",
+      "update-item-btn",
+      "reset-update-item-btn",
+    ];
 
-      setUpdateFieldsDisabled(true);
-      return;
-    }
-
-    updateItemNameInput.value = item.name;
-    updateItemCategoryInput.value =
-      item.category;
-    updateItemConditionSelect.value =
-      item.condition;
-    updateItemQtyInput.value =
-      String(item.quantity);
-    updateItemDescriptionInput.value =
-      item.description;
-    updateItemCheckoutDaysInput.value =
-      String(item.checkoutDays);
-
-    setUpdateFieldsDisabled(false);
-  }
-
-  function updateItem() {
-    const item = findInventoryItem(
-      updateItemSelect.value
-    );
-
-    const fields =
-      getItemFormData("update");
-
-    if (!item || !fields) {
-      if (!item) {
-        showNotification(
-          "Select an item to update."
-        );
-      }
-
-      return;
-    }
-
-    const duplicate = inventory.find(
-      (entry) =>
-        entry.id !== item.id &&
-        entry.name.toLowerCase() ===
-          fields.name.toLowerCase()
-    );
-
-    if (duplicate) {
-      showNotification(
-        `Another item named ${fields.name} already exists.`
-      );
-      return;
-    }
-
-    Object.assign(item, fields);
-
-    cart.forEach((entry) => {
-      if (entry.itemId === item.id) {
-        entry.itemName = fields.name;
-      }
+    fieldIds.forEach((id) => {
+      document.getElementById(id).disabled =
+        !item;
     });
 
-    saveState();
-    refreshAdminSelectors(fields.name);
-    renderAll();
+    document.getElementById(
+      "update-item-name"
+    ).value = item?.name || "";
 
-    showNotification(
-      `${fields.name} was updated.`
-    );
+    document.getElementById(
+      "update-item-category"
+    ).value = item?.category || "";
+
+    document.getElementById(
+      "update-item-condition"
+    ).value =
+      item?.condition || "Good";
+
+    document.getElementById(
+      "update-item-qty"
+    ).value = item
+      ? String(item.quantityTotal)
+      : "";
+
+    document.getElementById(
+      "update-item-description"
+    ).value =
+      item?.description || "";
+
+    document.getElementById(
+      "update-item-checkout-days"
+    ).value = item
+      ? String(item.checkoutDays)
+      : "";
   }
 
-  function deleteItem() {
-    const item = findInventoryItem(
-      deleteItemNameInput.value
-    );
+  async function submitInventoryForm(
+    event,
+    workingText
+  ) {
+    event.preventDefault();
 
-    if (!item) {
-      showNotification(
-        "Select an item to delete."
-      );
+    const form = event.currentTarget;
+
+    if (!form.reportValidity()) {
       return;
     }
 
-    const activeCheckout =
-      rentalHistory.some(
-        (entry) =>
-          ["approved", "overdue"].includes(
-            normalizeStatus(
-              entry.status,
-              entry.dueDateISO
+    const button =
+      event.submitter ||
+      form.querySelector(
+        'button[type="submit"]'
+      );
+
+    const originalText =
+      button.textContent;
+
+    button.disabled = true;
+    button.textContent = workingText;
+
+    try {
+      const result = await postForm(
+        form.action,
+        new FormData(form)
+      );
+
+      const message =
+        extractFlashMessage(result.text);
+
+      if (message) {
+        showNotification(message);
+
+        return;
+      }
+
+      window.location.reload();
+    } catch (error) {
+      showNotification(error.message);
+    } finally {
+      button.disabled = false;
+
+      button.textContent =
+        originalText;
+    }
+  }
+
+  document
+    .querySelectorAll(".tab-btn")
+    .forEach((button) => {
+      button.addEventListener(
+        "click",
+        () => {
+          document
+            .querySelectorAll(".tab-btn")
+            .forEach((item) => {
+              item.classList.remove(
+                "active"
+              );
+            });
+
+          document
+            .querySelectorAll(
+              ".tab-content"
             )
-          ) &&
-          entry.items.some(
-            (requestItem) =>
-              requestItem.itemId === item.id ||
-              requestItem.itemName.toLowerCase() ===
-                item.name.toLowerCase()
-          )
+            .forEach((item) => {
+              item.classList.remove(
+                "active"
+              );
+            });
+
+          button.classList.add(
+            "active"
+          );
+
+          document
+            .getElementById(
+              button.dataset.tab
+            )
+            .classList.add("active");
+
+          if (
+            [
+              "update-item-tab",
+              "modify-items-tab",
+            ].includes(
+              button.dataset.tab
+            )
+          ) {
+            refreshInventorySelects();
+          }
+        }
       );
-
-    if (activeCheckout) {
-      showNotification(
-        `${item.name} cannot be deleted while it is part of an active checkout.`
-      );
-      return;
-    }
-
-    inventory = inventory.filter(
-      (entry) => entry.id !== item.id
-    );
-
-    cart = cart.filter(
-      (entry) => entry.itemId !== item.id
-    );
-
-    saveState();
-    refreshAdminSelectors();
-    renderAll();
-
-    showNotification(
-      `${item.name} was deleted from the catalog.`
-    );
-  }
-
-  function damageItem() {
-    const item = findInventoryItem(
-      damageItemNameInput.value
-    );
-
-    const serialNumber =
-      damageSerialInput.value.trim();
-
-    const itemNumber =
-      damageItemNumberInput.value.trim();
-
-    if (
-      !item ||
-      !serialNumber ||
-      !itemNumber
-    ) {
-      showNotification(
-        "Select an item and fill out both damage identifiers."
-      );
-      return;
-    }
-
-    if (item.quantity <= 0) {
-      showNotification(
-        `${item.name} has no available quantity to damage out.`
-      );
-      return;
-    }
-
-    item.quantity -= 1;
-
-    if (item.quantity === 0) {
-      item.condition =
-        "Damaged / Unavailable";
-    }
-
-    damageSerialInput.value = "";
-    damageItemNumberInput.value = "";
-
-    saveState();
-    refreshAdminSelectors(item.name);
-    renderInventory();
-
-    showNotification(
-      `${item.name}, serial ${serialNumber}, item ${itemNumber}, was damaged out.`
-    );
-  }
-
-  function renderAll() {
-    updateCartCount();
-    syncAuthUI();
-    renderInventory();
-    renderCart();
-    renderRequests();
-    renderRentalHistory();
-    renderUserPendingRequests();
-    renderUserRentals();
-  }
-
-  tabButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      tabButtons.forEach((entry) => {
-        entry.classList.remove("active");
-      });
-
-      tabContents.forEach((entry) => {
-        entry.classList.remove("active");
-      });
-
-      button.classList.add("active");
-
-      document
-        .getElementById(button.dataset.tab)
-        .classList.add("active");
-
-      if (
-        [
-          "update-item-tab",
-          "modify-items-tab",
-        ].includes(button.dataset.tab)
-      ) {
-        refreshAdminSelectors();
-      }
     });
-  });
 
-  loginBtn.addEventListener("click", () => {
-    setLoginError("");
-    showModal(loginModal);
-  });
-
-  loginForm.addEventListener(
-    "submit",
-    handleLoginSubmit
-  );
-
-  loginCancelBtn.addEventListener(
+  elements.loginBtn.addEventListener(
     "click",
-    () => hideModal(loginModal)
+    () => {
+      setLoginError("");
+
+      showModal(elements.loginModal);
+    }
   );
 
-  logoutBtn.addEventListener(
+  elements.loginForm.addEventListener(
+    "submit",
+    handleLogin
+  );
+
+  elements.loginCancel.addEventListener(
+    "click",
+    () => {
+      hideModal(elements.loginModal);
+    }
+  );
+
+  elements.logoutBtn.addEventListener(
     "click",
     handleLogout
   );
 
-  cartBtn.addEventListener("click", () => {
-    renderCart();
-    showModal(cartModal);
-  });
-
-  cartCloseBtn.addEventListener(
-    "click",
-    () => hideModal(cartModal)
-  );
-
-  requestForm.addEventListener(
-    "submit",
-    submitRentalRequest
-  );
-
-  clearCartBtn.addEventListener(
+  elements.cartBtn.addEventListener(
     "click",
     () => {
-      cart = [];
       renderCart();
-      updateCartCount();
+
+      showModal(elements.cartModal);
     }
   );
 
-  notificationCloseBtn.addEventListener(
+  elements.cartClose.addEventListener(
     "click",
-    () => hideModal(notificationModal)
+    () => {
+      hideModal(elements.cartModal);
+    }
+  );
+
+  elements.clearCart.addEventListener(
+    "click",
+    () => {
+      cart = [];
+
+      renderCart();
+    }
+  );
+
+  elements.requestForm.addEventListener(
+    "submit",
+    submitRequest
+  );
+
+  elements.notificationClose.addEventListener(
+    "click",
+    () => {
+      hideModal(
+        elements.notificationModal
+      );
+    }
   );
 
   [
-    loginModal,
-    cartModal,
-    notificationModal,
+    elements.loginModal,
+    elements.cartModal,
+    elements.notificationModal,
   ].forEach((modal) => {
-    modal.addEventListener("click", (event) => {
-      if (event.target === modal) {
-        hideModal(modal);
+    modal.addEventListener(
+      "click",
+      (event) => {
+        if (event.target === modal) {
+          hideModal(modal);
+        }
       }
-    });
+    );
   });
 
-  addItemBtn.addEventListener(
-    "click",
-    addItem
+  elements.addItemForm.addEventListener(
+    "submit",
+    (event) => {
+      submitInventoryForm(
+        event,
+        "Adding..."
+      );
+    }
   );
 
-  clearAddItemBtn.addEventListener(
-    "click",
-    clearAddItemForm
+  elements.updateItemForm.addEventListener(
+    "submit",
+    (event) => {
+      submitInventoryForm(
+        event,
+        "Saving..."
+      );
+    }
   );
 
-  updateItemSelect.addEventListener(
+  elements.deleteItemForm.addEventListener(
+    "submit",
+    (event) => {
+      submitInventoryForm(
+        event,
+        "Deleting..."
+      );
+    }
+  );
+
+  elements.damageItemForm.addEventListener(
+    "submit",
+    (event) => {
+      submitInventoryForm(
+        event,
+        "Updating..."
+      );
+    }
+  );
+
+  elements.clearAddItem.addEventListener(
+    "click",
+    () => {
+      elements.addItemForm.reset();
+    }
+  );
+
+  elements.updateItemSelect.addEventListener(
     "change",
     populateUpdateForm
   );
 
-  updateItemBtn.addEventListener(
-    "click",
-    updateItem
-  );
-
-  resetUpdateItemBtn.addEventListener(
+  elements.resetUpdateItem.addEventListener(
     "click",
     populateUpdateForm
   );
 
-  deleteItemBtn.addEventListener(
-    "click",
-    deleteItem
-  );
-
-  damageItemBtn.addEventListener(
-    "click",
-    damageItem
-  );
-
-  loadState();
-  sortInventory();
-  renderAll();
+  syncAuthUI();
+  renderInventory();
+  renderCart();
+  renderUserPendingRequests();
+  renderAdminRequests();
+  renderRentalHistory();
+  renderUserHistory();
 });
