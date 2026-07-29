@@ -122,7 +122,7 @@ CREATE TABLE RequestItems (
 
     CONSTRAINT FK_RequestItems_Inventory
         FOREIGN KEY (item_id)
-        REFERENCES Inventory(item_id)
+        REFERENCES Inventory(item_id),
 
     CONSTRAINT FK_RequestItems_User
         FOREIGN KEY (user_id)
