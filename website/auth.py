@@ -14,15 +14,6 @@ def login():
         password = request.form.get("login-password")
         role = request.form.get("login-role")
 
-        # Initialize student variables
-        user_requests = None
-        all_requested_items = None
-
-        # Initialize admin variables
-        requests = None
-        requested_items = None
-        reports = None
-
         # Connect to database
         conn = get_connection()
 
@@ -52,24 +43,6 @@ def login():
                     if user.password == password:
                         flash("Logged in successfully!", category="success")
                         login_user(user)
-
-                        # Connect to database
-                        conn = get_connection()
-
-                        # Get logged-in user's rental history
-                        try:
-                            cursor = conn.cursor()
-
-                            # Get requests
-                            cursor.execute("SELECT * FROM Requests WHERE user_id = ?", (user.id))
-                            user_requests = cursor.fetchall()
-
-                            # Get request items
-                            cursor.execute("SELECT * FROM RequestItems WHERE user_id = ?", (user.id))
-                            user_requested_items = cursor.fetchall()
-                        finally:
-                            conn.close()
-
                         return redirect(url_for("views.home"))
                     else:
                         flash("Incorrect password, try again.", category="error")
@@ -82,33 +55,11 @@ def login():
                     if user.password == password:
                         flash("Logged in successfully!", category="success")
                         login_user(user)
-
-                        # Connect to database
-                        conn = get_connection()
-
-                        # Get all requests and reports
-                        try:
-                            cursor = conn.cursor()
-
-                            # Get all requests
-                            cursor.execute("SELECT * FROM Requests")
-                            requests = cursor.fetchall()
-
-                            # Get all request items
-                            cursor.execute("SELECT * FROM RequestItems")
-                            requested_items = cursor.fetchall()
-
-                            # Get all reports
-                            cursor.execute("SELECT * FROM Reports")
-                            reports = cursor.fetchall()
-                        finally:
-                            conn.close()
-
                         return redirect(url_for("views.home"))
                     else:
                         flash("Incorrect password, try again.", category="error")
 
-    return render_template("index.html", user=current_user, user_requests=user_requests, user_requested_items=user_requested_items, requests=requests, requested_items=requested_items, reports=reports)
+    return render_template("index.html", user=current_user)
 
 @auth.route("/logout")
 def logout():
