@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template
 from flask_login import current_user
+from datetime import timedelta
 
 from .db import get_connection
 
@@ -10,14 +11,10 @@ def home():
     # Connect to database
     conn = get_connection()
 
-    # Initialize student variables
-    user_requests = None
-    user_requested_items = None
-
     # Initialize admin variables
-    requests = None
-    requested_items = None
-    reports = None
+    pending_requests = []
+    rental_history = []
+    reports = []
 
     # Query the database
     try:
@@ -40,79 +37,99 @@ def home():
         ]
 
         if current_user.is_authenticated:
-            if current_user.role == "Student":
-                # Get requests
-                cursor.execute("SELECT * FROM Requests WHERE user_id = ?", (current_user.id))
-                user_requests = [
-                    {
-                        "request_id": row.request_id,
-                        "user_id": row.user_id,
-                        "request_date": row.request_date,
-                        "reason_description": row.reason_description,
-                        "request_status": row.request_status,
-                        "approved_by": row.approved_by,
-                        "approval_date": row.approval_date
-                    }
-                    for row in cursor.fetchall()
-                ]
+            # Get all pending requests
+            cursor.execute("SELECT * FROM Requests WHERE request_status = ?",
+                            ("Pending",))
+            all_pending_requests = cursor.fetchall()
 
-                # Get request items
-                cursor.execute("SELECT * FROM RequestItems WHERE user_id = ?", (current_user.id))
-                user_requested_items = [
-                    {
-                        "request_item_id": row.request_item_id,
-                        "request_id": row.request_id,
-                        "item_id": row.item_id,
-                        "quantity_requested": row.quantity_requested,
-                        "user_id": row.user_id
-                    }
-                    for row in cursor.fetchall()
-                ]
-            elif current_user.role == "Admin":
-                # Get all requests
-                cursor.execute("SELECT * FROM Requests")
-                requests = [
-                    {
-                        "request_id": row.request_id,
-                        "user_id": row.user_id,
-                        "request_date": row.request_date,
-                        "reason_description": row.reason_description,
-                        "request_status": row.request_status,
-                        "approved_by": row.approved_by,
-                        "approval_date": row.approval_date
-                    }
-                    for row in cursor.fetchall()
-                ]
+            for pending_request in all_pending_requests:
+                cursor.execute("SELECT * FROM RequestItems WHERE request_id = ?",
+                                (pending_request.request_id,))
+                
+                requested_items = cursor.fetchall()
 
-                # Get all request items
-                cursor.execute("SELECT * FROM RequestItems")
-                requested_items = [
-                    {
-                        "request_item_id": row.request_item_id,
-                        "request_id": row.request_id,
-                        "item_id": row.item_id,
-                        "quantity_requested": row.quantity_requested,
-                        "user_id": row.user_id
-                    }
-                    for row in cursor.fetchall()
-                ]
+                requested_item_data = []
 
-                # Get all reports
-                cursor.execute("SELECT * FROM Reports")
-                reports = [
-                    {
-                        "report_id": row.report_id,
-                        "request_item_id": row.request_item_id,
-                        "date_returned": row.date_returned,
-                        "damaged_state": row.damaged_state,
-                        "damage_description": row.damage_description,
-                        "returned_on_time": row.returned_on_time,
-                        "completion_status": row.completion_status
+                for request_item in requested_items:
+                    cursor.execute("SELECT item_name, rental_period_days FROM Inventory WHERE item_id = ?",
+                                    (request_item.item_id,))
+                    request_item_data = cursor.fetchone()[0]
+
+                    cursor.execute("SELECT date_returned FROM Reports WHERE request_item_id = ?",
+                                   (request_item.request_item_id,))
+                    request_item_return_date = cursor.fetchone()
+
+                    requested_item_data.append({
+                        "item_name": request_item_data[0],
+                        "checkout_days": request_item_data[1],
+                        "return_date": request_item_return_date
+                    })
+
+                pending_request_data = {
+                        "request_id": pending_request.request_id,
+                        "user_id": pending_request.user_id,
+                        "request_date": pending_request.request_date,
+                        "reason_description": pending_request.reason_description,
+                        "request_status": pending_request.request_status,
+                        "approved_by": pending_request.approved_by,
+                        "approval_date": pending_request.approval_date,
+                        "items": [
+                            {"itemId": requested_item.item_id,
+                                "itemName": requested_item_data[index]["item_name"],
+                                "quantity": requested_item.quantity_requested,
+                                "checkoutDays": requested_item_data[index]["checkout_days"],
+                                "due_date": pending_request.approval_date + timedelta(days=requested_item_data[index]["checkout_days"]),
+                                "return_date": requested_item_data[index]["return_date"]
+                                }
+                            for index, requested_item in enumerate(requested_items)
+                        ]
                     }
-                    for row in cursor.fetchall()
-                ]
+
+                pending_requests.append(pending_request_data)
+            # Get all other requests
+            cursor.execute("SELECT * FROM Requests WHERE request_status = ? OR request_status = ? OR request_status = ?",
+                                        ("Approved", "Denied", "Returned"))
+            all_request_history = cursor.fetchall()
+
+            for request in all_request_history:
+                cursor.execute("SELECT * FROM RequestItems WHERE request_id = ?",
+                                (request.request_id,))
+                
+                requested_items_history = cursor.fetchall()
+
+                requested_item_history_data = []
+
+                for request_item_history in requested_items_history:
+                    cursor.execute("SELECT item_name, rental_period_days FROM Inventory WHERE item_id = ?",
+                                    (request_item_history.item_id,))
+                    request_item_history_data = cursor.fetchone()[0]
+
+                    requested_item_history_data.append({
+                        "item_name": request_item_history_data[0],
+                        "checkout_days": request_item_history_data[1]
+                    })
+
+                request_history_data = {
+                        "request_id": request.request_id,
+                        "user_id": request.user_id,
+                        "request_date": request.request_date,
+                        "reason_description": request.reason_description,
+                        "request_status": request.request_status,
+                        "approved_by": request.approved_by,
+                        "approval_date": request.approval_date,
+                        "items": [
+                            {"itemId": requested_item_history.item_id,
+                                "itemName": requested_item_history_data[index]["item_name"],
+                                "quantity": requested_item_history.quantity_requested,
+                                "checkoutDays": requested_item_history_data[index]["checkout_days"]
+                                }
+                            for index, requested_item_history in enumerate(requested_items_history)
+                        ]
+                    }
+
+                rental_history.append(request_history_data)
     finally:
         cursor.close()
         conn.close()
 
-    return render_template("index.html", user=current_user, inventory=inventory, user_requests=user_requests, user_requested_items=user_requested_items, requests=requests, requested_items=requested_items, reports=reports)
+    return render_template("index.html", user=current_user, inventory=inventory, pending_requests=pending_requests, rental_history=rental_history, reports=reports)

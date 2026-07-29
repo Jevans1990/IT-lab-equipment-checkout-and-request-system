@@ -10,55 +10,59 @@ requests = Blueprint("requests", __name__)
 @requests.route("/submit-request", methods=["POST"])
 @login_required
 def submit_request():
-    if current_user.role == "Student":
-        flash("Unauthorized access.", category="error")
-    else:
-        if request.method == "POST":
-            # Get the request data
-            items = json.loads(request.form["request_items"])
-            
-            # Connect to database
-            conn = get_connection()
+    if request.method == "POST":
+        # Get the request data
+        items = json.loads(request.form["request_items"])
+        
+        # Connect to database
+        conn = get_connection()
 
-            try:
-                # Insert request
-                cursor = conn.cursor()
-                cursor.execute("INSERT INTO Requests (user_id) OUTPUT INSERTED.request_id VALUES (?)", (current_user.id,))
+        try:
+            # Insert request
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO Requests (user_id) OUTPUT INSERTED.request_id VALUES (?)", (current_user.id,))
 
-                request_id = cursor.fetchone()[0]
+            request_id = cursor.fetchone()[0]
 
-                # Initialize the list of items requested
-                request_items = []
+            # Initialize the list of items requested
+            request_items = []
 
-                # Define data to insert
-                for item in items:
-                    cursor.execute("SELECT item_id FROM Inventory WHERE item_name = ?", (item["item_name"]))
-                    item_id = cursor.fetchone()[0]
+            for item in items:
+                item_id = item["item_id"]
 
-                    if item_id is None:
-                        # Stop if the item is not found
-                        flash("Item not found.", category="error")
-                        return jsonify({"error": "Item not found."}), 400
-                    else:
-                        # Append the item data to insert
-                        request_item_data = (request_id, item_id, item["quantity_requested"], current_user.id)
-                        request_items.append(request_item_data)
+                request_item_data = (
+                    request_id,
+                    item_id,
+                    item["quantity_requested"],
+                    current_user.id,
+                )
 
-                # Insert request
-                cursor.executemany("INSERT INTO RequestItems (request_id, item_id, quantity_requested, user_id) VALUES (?, ?, ?, ?);",
-                                (request_items,))
+                request_items.append(request_item_data)
 
-                conn.commit()
+            cursor.executemany(
+                """
+                INSERT INTO RequestItems (
+                    request_id,
+                    item_id,
+                    quantity_requested,
+                    user_id
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                request_items,
+            )
 
-                return jsonify({"request_id": request_id})
-            except Exception as e:
-                # Rollback if there is an error
-                conn.rollback()
-                print(e)
-                return jsonify({"error": str(e)}), 500
-            finally:
-                cursor.close()
-                conn.close()
+            conn.commit()
+
+            return jsonify({"request_id": request_id})
+        except Exception as e:
+            # Rollback if there is an error
+            conn.rollback()
+            print(e)
+            return jsonify({"error": str(e)}), 500
+        finally:
+            cursor.close()
+            conn.close()
 
     return render_template("index.html", user=current_user)
 

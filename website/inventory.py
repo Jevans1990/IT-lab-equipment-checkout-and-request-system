@@ -29,7 +29,7 @@ def add_item():
                 # Check if the item already exists
                 cursor.execute("SELECT item_id FROM Inventory WHERE item_name = ?",
                             (item_name,))
-                existing_item = cursor.fetchone()[0]
+                existing_item = cursor.fetchone()
 
                 if existing_item:
                     # Stop if the item exists
@@ -81,10 +81,6 @@ def update_item():
                     flash("Item does not exist.", category="error")
                     return render_template("index.html", user=current_user)
                 else:
-                    # Initialize variables
-                    update_item_data = []
-                    update_item_categories = ""
-
                     # Update data
                     if item_category != inventory_item[1]:
                         # Update item category
@@ -94,6 +90,8 @@ def update_item():
                             WHERE item_name = ?""",
                             (item_category, item_name,))
 
+                        conn.commit()
+
                     if item_condition != inventory_item[2]:
                         #Update item condition
                         cursor.execute("""
@@ -101,6 +99,8 @@ def update_item():
                             SET item_condition = ?
                             WHERE item_name = ?""",
                             (item_condition, item_name,))
+
+                        conn.commit()
 
                     if item_qty != inventory_item[3]:
                         # Update total quantity
@@ -110,6 +110,8 @@ def update_item():
                             WHERE item_name = ?""",
                             (item_qty, item_qty, item_name,))
 
+                        conn.commit()
+
                     if item_description != inventory_item[4]:
                         # Update item description
                         cursor.execute("""
@@ -117,6 +119,8 @@ def update_item():
                             SET description = ?
                             WHERE item_name = ?""",
                             (item_description, item_name,))
+
+                        conn.commit()
 
                     if item_checkout_days != inventory_item[5]:
                         # Update number of rental days
@@ -126,7 +130,7 @@ def update_item():
                             WHERE item_name = ?""",
                             (item_checkout_days, item_name,))
 
-                    conn.commit()
+                        conn.commit()
             except Exception as e:
                 # Rollback if there is an error
                 conn.rollback()
@@ -145,8 +149,8 @@ def modify_item():
     else:
         if request.method == "POST":
             # Get modify item data
-            delete_item_name = request.form.get("delete-item-name")
-            damage_item_name = request.form.get("damage-item-name")
+            delete_item_id = request.form.get("delete-item-name")
+            damage_item_id = request.form.get("damage-item-name")
 
             # Connect to database
             conn = get_connection()
@@ -154,16 +158,16 @@ def modify_item():
             try:
                 cursor = conn.cursor()
 
-                if delete_item_name:
+                if delete_item_id:
                     # Delete an item
-                    cursor.execute("DELETE FROM Inventory WHERE item_name = ?",
-                                (delete_item_name,))
+                    cursor.execute("DELETE FROM Inventory WHERE item_id = ?",
+                                (delete_item_id,))
 
                     conn.commit()
-                elif damage_item_name:
+                elif damage_item_id:
                     # Damage out an item
-                    cursor.execute("SELECT quantity_available FROM Inventory WHERE item_name = ?",
-                                (damage_item_name,))
+                    cursor.execute("SELECT quantity_available FROM Inventory WHERE item_id = ?",
+                                (damage_item_id,))
 
                     damage_item_qty_available = cursor.fetchone()[0]
 
@@ -175,8 +179,8 @@ def modify_item():
                         cursor.execute("""
                             UPDATE Inventory
                             SET quantity_available = ?
-                            WHERE item_name = ?""",
-                            (new_qty_available, damage_item_name,))
+                            WHERE item_id = ?""",
+                            (new_qty_available, damage_item_id,))
 
                         conn.commit()
             except Exception as e:
