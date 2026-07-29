@@ -24,9 +24,9 @@ VALUES
 (1, 'Need equipment for a class media project.');
 GO
 
-INSERT INTO RequestItems (request_id, item_id, quantity_requested)
+INSERT INTO RequestItems (request_id, item_id, quantity_requested, user_id)
 VALUES
-(1, 1, 1),
-(1, 2, 1),
-(1, 3, 2);
+(1, 1, 1, 1),
+(1, 2, 1, 1),
+(1, 3, 2, 1);
 GO
