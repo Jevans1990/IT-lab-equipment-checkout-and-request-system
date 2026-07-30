@@ -53,7 +53,7 @@ def home():
                 for request_item in requested_items:
                     cursor.execute("SELECT item_name, rental_period_days FROM Inventory WHERE item_id = ?",
                                     (request_item.item_id,))
-                    request_item_data = cursor.fetchone()[0]
+                    request_item_data = cursor.fetchone()
 
                     cursor.execute("SELECT date_returned FROM Reports WHERE request_item_id = ?",
                                    (request_item.request_item_id,))
@@ -102,7 +102,7 @@ def home():
                 for request_item_history in requested_items_history:
                     cursor.execute("SELECT item_name, rental_period_days FROM Inventory WHERE item_id = ?",
                                     (request_item_history.item_id,))
-                    request_item_history_data = cursor.fetchone()[0]
+                    request_item_history_data = cursor.fetchone()
 
                     requested_item_history_data.append({
                         "item_name": request_item_history_data[0],
