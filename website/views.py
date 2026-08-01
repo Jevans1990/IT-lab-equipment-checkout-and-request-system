@@ -42,6 +42,7 @@ def home():
                             ("Pending",))
             all_pending_requests = cursor.fetchall()
 
+            # Get all items for each request
             for pending_request in all_pending_requests:
                 cursor.execute("SELECT * FROM RequestItems WHERE request_id = ?",
                                 (pending_request.request_id,))
@@ -51,20 +52,24 @@ def home():
                 requested_item_data = []
 
                 for request_item in requested_items:
+                    # Get item name and checkout days for each requested item
                     cursor.execute("SELECT item_name, rental_period_days FROM Inventory WHERE item_id = ?",
                                     (request_item.item_id,))
                     request_item_data = cursor.fetchone()
 
+                    # Get return date
                     cursor.execute("SELECT date_returned FROM Reports WHERE request_item_id = ?",
                                    (request_item.request_item_id,))
                     request_item_return_date = cursor.fetchone()
 
+                    # Add each item's data to the list
                     requested_item_data.append({
                         "item_name": request_item_data[0],
                         "checkout_days": request_item_data[1],
                         "return_date": request_item_return_date
                     })
 
+                # Create a dict for each pending request
                 pending_request_data = {
                         "request_id": pending_request.request_id,
                         "user_id": pending_request.user_id,
@@ -78,8 +83,6 @@ def home():
                                 "itemName": requested_item_data[index]["item_name"],
                                 "quantity": requested_item.quantity_requested,
                                 "checkoutDays": requested_item_data[index]["checkout_days"],
-                                "due_date": pending_request.approval_date + timedelta(days=requested_item_data[index]["checkout_days"]),
-                                "return_date": requested_item_data[index]["return_date"]
                                 }
                             for index, requested_item in enumerate(requested_items)
                         ]
@@ -91,6 +94,7 @@ def home():
                                         ("Approved", "Denied", "Returned"))
             all_request_history = cursor.fetchall()
 
+            # Get all items for each request
             for request in all_request_history:
                 cursor.execute("SELECT * FROM RequestItems WHERE request_id = ?",
                                 (request.request_id,))
@@ -100,15 +104,18 @@ def home():
                 requested_item_history_data = []
 
                 for request_item_history in requested_items_history:
+                    # Get item name and checkout days for each requested item
                     cursor.execute("SELECT item_name, rental_period_days FROM Inventory WHERE item_id = ?",
                                     (request_item_history.item_id,))
                     request_item_history_data = cursor.fetchone()
 
+                    # Add each item's data to the list
                     requested_item_history_data.append({
                         "item_name": request_item_history_data[0],
                         "checkout_days": request_item_history_data[1]
                     })
 
+                # Create a dict for each request
                 request_history_data = {
                         "request_id": request.request_id,
                         "user_id": request.user_id,
