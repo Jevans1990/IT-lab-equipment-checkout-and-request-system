@@ -43,25 +43,32 @@ CREATE TABLE Inventory (
 
     item_name VARCHAR(100) NOT NULL,
 
-    quantity_total INT NOT NULL
-        CHECK (quantity_total >= 0),
+    quantity_total INT NOT NULL,
 
-    quantity_available INT NOT NULL
-        CHECK (quantity_available >= 0
-                AND quantity_available <= quantity_total),
+    quantity_available INT NOT NULL,
 
-    item_category VARCHAR(50) NOT NULL DEFAULT 'General',
-    
-    item_condition VARCHAR(25) NOT NULL DEFAULT 'Good',
+    item_category VARCHAR(50)
+        NOT NULL DEFAULT 'General',
+
+    item_condition VARCHAR(25)
+        NOT NULL DEFAULT 'Good',
 
     description VARCHAR(255),
 
     availability_status VARCHAR(25)
-        NOT NULL
-        DEFAULT 'Available',
+        NOT NULL DEFAULT 'Available',
 
-    rental_period_days INT NOT NULL
-        DEFAULT 7
+    rental_period_days INT
+        NOT NULL DEFAULT 7,
+
+    CONSTRAINT CK_Inventory_QuantityTotal
+        CHECK (quantity_total >= 0),
+
+    CONSTRAINT CK_Inventory_QuantityAvailable
+        CHECK (
+            quantity_available >= 0
+            AND quantity_available <= quantity_total
+        )
 );
 GO
 
